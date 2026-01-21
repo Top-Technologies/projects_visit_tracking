@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_visit_tracker_form" model="ir.ui.view">
+        <field name="name">visit.tracker.form</field>
+        <field name="model">visit.tracker</field>
+        <field name="arch" type="xml">
+            <form string="Sales Visit">
+                <header>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="partner_id"/>
+                            <field name="user_id"/>
+                            <field name="visit_date"/>
+                        </group>
+                        <group>
+                            <field name="latitude" readonly="1"/>
+                            <field name="longitude" readonly="1"/>
+                            <field name="device_info" readonly="1"/>
+                        </group>
+                    </group>
+                    <!-- The JS widget will append itself here or replace a placeholder -->
+                    <div class="o_visit_geolocation_control">
+                        <!-- Custom widget will render here -->
+                        <widget name="visit_geolocation_button"/>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_visit_tracker_tree" model="ir.ui.view">
+        <field name="name">visit.tracker.tree</field>
+        <field name="model">visit.tracker</field>
+        <field name="arch" type="xml">
+            <list string="Sales Visits">
+                <field name="name"/>
+                <field name="visit_date"/>
+                <field name="user_id"/>
+                <field name="partner_id"/>
+                <field name="state"/>
+                <field name="latitude" optional="hide"/>
+                <field name="longitude" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_visit_tracker" model="ir.actions.act_window">
+        <field name="name">Sales Visits</field>
+        <field name="res_model">visit.tracker</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Record your first sales visit!
+            </p>
+        </field>
+    </record>
+
+    <menuitem id="menu_visit_tracker_root"
+              name="Visit Tracking"
+              parent="sale.sale_menu_root"
+              sequence="50"
+              action="action_visit_tracker"/>
+</odoo>
