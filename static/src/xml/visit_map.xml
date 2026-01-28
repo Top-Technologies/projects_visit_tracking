@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="sales_visit_tracking.VisitMapDashboard" owl="1">
+        <div class="visit-map-dashboard h-100 d-flex flex-column">
+            <!-- Header with filters -->
+            <div class="visit-map-header bg-white border-bottom p-3 d-flex align-items-center gap-3 flex-wrap">
+                <h4 class="mb-0 me-auto">
+                    <i class="fa fa-map-marker text-primary me-2"/>Visit Map Dashboard
+                </h4>
+                
+                <div class="d-flex align-items-center gap-2">
+                    <label class="mb-0 text-muted">Salesperson:</label>
+                    <select class="form-select form-select-sm" style="width: 180px;" t-on-change="onUserChange">
+                        <option value="">All Salespeople</option>
+                        <t t-foreach="state.salespeople" t-as="user" t-key="user.id">
+                            <option t-att-value="user.id" t-att-selected="state.selectedUser == user.id">
+                                <t t-esc="user.name"/>
+                            </option>
+                        </t>
+                    </select>
+                </div>
+
+                <div class="d-flex align-items-center gap-2">
+                    <label class="mb-0 text-muted">Date:</label>
+                    <input type="date" class="form-control form-control-sm" style="width: 150px;"
+                           t-att-value="state.selectedDate" t-on-change="onDateChange"/>
+                </div>
+
+                <button class="btn btn-outline-primary btn-sm" t-on-click="onRefresh">
+                    <i class="fa fa-refresh"/> Refresh
+                </button>
+            </div>
+
+            <!-- Stats bar -->
+            <div class="visit-stats bg-light border-bottom p-2 d-flex gap-4 px-3">
+                <div class="stat-item">
+                    <span class="text-muted" t-if="!state.selectedUser">Active Salespeople:</span>
+                    <span class="text-muted" t-else="">Total Visits:</span>
+                    <strong class="ms-1 text-primary" t-esc="state.visits.length"/>
+                </div>
+                <div class="stat-item" t-if="state.selectedUser">
+                    <span class="text-muted">Route shown for selected salesperson</span>
+                </div>
+                 <div class="stat-item" t-else="">
+                    <span class="text-muted">Showing latest location per salesperson</span>
+                </div>
+            </div>
+
+            <!-- Map container -->
+            <div class="visit-map-container flex-grow-1 position-relative">
+                <div t-if="state.loading" class="loading-overlay position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 1000;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div id="visit-map" class="w-100 h-100" style="min-height: 500px;"/>
+            </div>
+
+            <!-- Visit list -->
+            <div class="visit-list bg-white border-top" style="max-height: 200px; overflow-y: auto;">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th>#</th>
+                            <th>Time</th>
+                            <th>Salesperson</th>
+                            <th>Customer</th>
+                            <!-- <th>Address</th> -->
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-foreach="state.visits" t-as="visit" t-key="visit.id">
+                            <tr>
+                                <td><span class="badge bg-primary" t-esc="visit_index + 1"/></td>
+                                <td t-esc="new Date(visit.visit_date).toLocaleTimeString()"/>
+                                <td t-esc="visit.user_id[1]"/>
+                                <td t-esc="visit.partner_id[1]"/>
+                                <!-- <td class="text-truncate" style="max-width: 300px;" t-esc="visit.location_address || '-'"/> -->
+                            </tr>
+                        </t>
+                        <t t-if="state.visits.length === 0">
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-3">No visits found for selected filters</td>
+                            </tr>
+                        </t>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </t>
+</templates>

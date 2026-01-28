@@ -1,34 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- Search View -->
+    <record id="view_visit_tracker_search" model="ir.ui.view">
+        <field name="name">visit.tracker.search</field>
+        <field name="model">visit.tracker</field>
+        <field name="arch" type="xml">
+            <search string="Search Visits">
+                <field name="lead_id"/>
+                <field name="partner_id"/>
+                <field name="user_id"/>
+                <field name="location_address"/>
+                <filter string="Checked In" name="checked_in" domain="[('state', '=', 'done')]"/>
+                <filter string="Draft" name="draft" domain="[('state', '=', 'draft')]"/>
+                <separator/>
+                <filter string="Today" name="today" domain="[('visit_date', '&gt;=', (context_today()).strftime('%Y-%m-%d')), ('visit_date', '&lt;', (context_today() + relativedelta(days=1)).strftime('%Y-%m-%d'))]"/>
+                <filter string="This Week" name="this_week" domain="[('visit_date', '&gt;=', (context_today() - relativedelta(days=context_today().weekday())).strftime('%Y-%m-%d'))]"/>
+                <filter string="This Month" name="this_month" domain="[('visit_date', '&gt;=', (context_today()).strftime('%Y-%m-01'))]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Lead/Opportunity" name="group_lead" context="{'group_by': 'lead_id'}"/>
+                    <filter string="Salesperson" name="group_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="Customer" name="group_partner" context="{'group_by': 'partner_id'}"/>
+                    <filter string="Visit Date" name="group_date" context="{'group_by': 'visit_date:day'}"/>
+                    <filter string="Status" name="group_state" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Form View -->
     <record id="view_visit_tracker_form" model="ir.ui.view">
         <field name="name">visit.tracker.form</field>
         <field name="model">visit.tracker</field>
         <field name="arch" type="xml">
-            <form string="Sales Visit">
+            <form string="Visit">
                 <header>
-                    <field name="state" widget="statusbar" statusbar_visible="draft,done"/>
+                    <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
-                    <div class="oe_title">
-                        <h1>
-                            <field name="name"/>
-                        </h1>
-                    </div>
                     <group>
-                        <group>
+                        <group string="Visit Information">
+                            <field name="lead_id"/>
                             <field name="partner_id"/>
                             <field name="user_id"/>
                             <field name="visit_date"/>
                         </group>
-                        <group>
-                            <field name="latitude" readonly="1"/>
-                            <field name="longitude" readonly="1"/>
-                            <field name="device_info" readonly="1"/>
+                        <group string="Location">
+                            <field name="latitude"/>
+                            <field name="longitude"/>
+                            <field name="location_address"/>
+                            <field name="maps_url" widget="url" text="View on Map"/>
+                            <field name="device_info"/>
                         </group>
                     </group>
-                    <!-- The JS widget will append itself here or replace a placeholder -->
+                    <group string="Notes">
+                        <field name="notes" nolabel="1" placeholder="Add visit notes here..."/>
+                    </group>
                     <div class="o_visit_geolocation_control">
-                        <!-- Custom widget will render here -->
                         <widget name="visit_geolocation_button"/>
                     </div>
                 </sheet>
@@ -36,36 +64,71 @@
         </field>
     </record>
 
+    <!-- List View -->
     <record id="view_visit_tracker_tree" model="ir.ui.view">
         <field name="name">visit.tracker.tree</field>
         <field name="model">visit.tracker</field>
         <field name="arch" type="xml">
-            <list string="Sales Visits">
-                <field name="name"/>
+            <list string="Visits" default_order="visit_date desc">
                 <field name="visit_date"/>
                 <field name="user_id"/>
-                <field name="partner_id"/>
-                <field name="state"/>
+                <field name="lead_id" optional="show"/>
+                <field name="partner_id" optional="hide"/>
+                <field name="location_address" optional="show"/>
+                <field name="state" widget="badge" decoration-success="state == 'done'" decoration-info="state == 'draft'"/>
+                <field name="maps_url" widget="url" text="Map" optional="show"/>
                 <field name="latitude" optional="hide"/>
                 <field name="longitude" optional="hide"/>
             </list>
         </field>
     </record>
 
+    <!-- Pivot View -->
+    <record id="view_visit_tracker_pivot" model="ir.ui.view">
+        <field name="name">visit.tracker.pivot</field>
+        <field name="model">visit.tracker</field>
+        <field name="arch" type="xml">
+            <pivot string="Visit Analysis" sample="1">
+                <field name="user_id" type="row"/>
+                <field name="visit_date" type="col" interval="day"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- Graph View -->
+    <record id="view_visit_tracker_graph" model="ir.ui.view">
+        <field name="name">visit.tracker.graph</field>
+        <field name="model">visit.tracker</field>
+        <field name="arch" type="xml">
+            <graph string="Visit Statistics" type="bar" sample="1">
+                <field name="user_id"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- Main Action -->
     <record id="action_visit_tracker" model="ir.actions.act_window">
-        <field name="name">Sales Visits</field>
+        <field name="name">Visits</field>
         <field name="res_model">visit.tracker</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">list,form,pivot,graph</field>
+        <field name="search_view_id" ref="view_visit_tracker_search"/>
+        <field name="context">{'search_default_checked_in': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
-                Record your first sales visit!
+                Record your first visit!
+            </p>
+            <p>
+                Track salesperson visits with geolocation to monitor field activities.
             </p>
         </field>
     </record>
 
-    <menuitem id="menu_visit_tracker_root"
-              name="Visit Tracking"
-              parent="sale.sale_menu_root"
-              sequence="50"
-              action="action_visit_tracker"/>
+    <!-- Report Action (with default grouping) -->
+    <record id="action_visit_tracker_report" model="ir.actions.act_window">
+        <field name="name">Visit Reports</field>
+        <field name="res_model">visit.tracker</field>
+        <field name="view_mode">graph,pivot,list</field>
+        <field name="search_view_id" ref="view_visit_tracker_search"/>
+        <field name="context">{'search_default_checked_in': 1, 'search_default_group_user': 1}</field>
+    </record>
 </odoo>

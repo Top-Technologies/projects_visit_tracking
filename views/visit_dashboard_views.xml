@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Dashboard Client Action -->
+    <record id="action_visit_map_dashboard" model="ir.actions.client">
+        <field name="name">Visit Map Dashboard</field>
+        <field name="tag">sales_visit_tracking.visit_map_dashboard</field>
+    </record>
+
+    <!-- Main Menu under CRM -->
+    <menuitem id="menu_visit_tracking_main"
+              name="Visit Tracking"
+              parent="crm.crm_menu_root"
+              sequence="50"/>
+
+    <menuitem id="menu_visit_dashboard"
+              name="Map Dashboard"
+              parent="menu_visit_tracking_main"
+              action="action_visit_map_dashboard"
+              sequence="5"/>
+
+    <menuitem id="menu_visit_list"
+              name="Visits"
+              parent="menu_visit_tracking_main"
+              action="action_visit_tracker"
+              sequence="10"/>
+
+    <menuitem id="menu_visit_report"
+              name="Reports"
+              parent="menu_visit_tracking_main"
+              action="action_visit_tracker_report"
+              sequence="20"/>
+</odoo>

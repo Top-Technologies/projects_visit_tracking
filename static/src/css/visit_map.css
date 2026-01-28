@@ -1,0 +1,49 @@
+.visit-map-dashboard {
+    background-color: #f8f9fa;
+}
+
+.visit-map-header h4 {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.visit-stats .stat-item {
+    font-size: 0.9rem;
+}
+
+.visit-marker {
+    background: transparent !important;
+    border: none !important;
+}
+
+#visit-map {
+    z-index: 1;
+}
+
+.visit-list table th {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #6c757d;
+}
+
+.visit-list table td {
+    font-size: 0.85rem;
+    vertical-align: middle;
+}
+
+.loading-overlay {
+    backdrop-filter: blur(2px);
+}
+
+/* Leaflet popup customization */
+.leaflet-popup-content-wrapper {
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.leaflet-popup-content {
+    margin: 12px 16px;
+    font-size: 13px;
+    line-height: 1.5;
+}
