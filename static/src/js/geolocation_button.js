@@ -51,6 +51,13 @@ const visitCheckInService = {
 };
 registry.category("services").add("visit_check_in", visitCheckInService);
 
+// Helper to detect mobile devices via User Agent
+function isMobileDevice() {
+    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+    const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+    return mobileRegex.test(userAgent);
+}
+
 /**
  * Geolocation Button Widget for CRM Leads
  */
@@ -66,6 +73,13 @@ export class LeadGeolocationButton extends Component {
     }
 
     async onClickCheckIn() {
+        if (!isMobileDevice()) {
+            this.notification.add("Check-in is only allowed from mobile devices.", {
+                type: "danger",
+            });
+            return;
+        }
+
         if (!navigator.geolocation) {
             this.notification.add("Geolocation is not supported by your browser.", {
                 type: "danger",
@@ -115,6 +129,13 @@ export class VisitGeolocationButton extends Component {
     }
 
     async onClickCheckIn() {
+        if (!isMobileDevice()) {
+            this.notification.add("Check-in is only allowed from mobile devices.", {
+                type: "danger",
+            });
+            return;
+        }
+
         if (!navigator.geolocation) {
             this.notification.add("Geolocation is not supported by your browser.", {
                 type: "danger",

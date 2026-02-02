@@ -15,6 +15,7 @@
     'depends': ['base', 'web', 'crm', 'sales_team'],
     'data': [
         'security/ir.model.access.csv',
+        'security/security.xml',
         'views/visit_tracker_views.xml',
         'views/crm_lead_views.xml',
         'views/visit_dashboard_views.xml',
