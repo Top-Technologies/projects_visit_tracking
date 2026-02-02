@@ -12,7 +12,7 @@
         - Filter by salesperson, date, and lead
     """,
     'author': 'Top-tech',
-    'depends': ['base', 'web', 'crm'],
+    'depends': ['base', 'web', 'crm', 'sales_team'],
     'data': [
         'security/ir.model.access.csv',
         'views/visit_tracker_views.xml',

@@ -24,6 +24,13 @@
               action="action_visit_tracker"
               sequence="10"/>
 
+    <menuitem id="menu_visit_cancellation_requests"
+              name="Cancellation Requests"
+              parent="menu_visit_tracking_main"
+              action="action_visit_tracker_cancellation_requests"
+              sequence="15"
+              groups="sales_team.group_sale_manager"/>
+
     <menuitem id="menu_visit_report"
               name="Reports"
               parent="menu_visit_tracking_main"

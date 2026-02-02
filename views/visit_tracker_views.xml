@@ -12,6 +12,8 @@
                 <field name="location_address"/>
                 <filter string="Checked In" name="checked_in" domain="[('state', '=', 'done')]"/>
                 <filter string="Draft" name="draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="Cancellation Requested" name="cancellation_requested" domain="[('state', '=', 'cancellation_requested')]"/>
+                <filter string="Cancelled" name="cancelled" domain="[('state', '=', 'cancelled')]"/>
                 <separator/>
                 <filter string="Today" name="today" domain="[('visit_date', '&gt;=', (context_today()).strftime('%Y-%m-%d')), ('visit_date', '&lt;', (context_today() + relativedelta(days=1)).strftime('%Y-%m-%d'))]"/>
                 <filter string="This Week" name="this_week" domain="[('visit_date', '&gt;=', (context_today() - relativedelta(days=context_today().weekday())).strftime('%Y-%m-%d'))]"/>
@@ -35,7 +37,15 @@
         <field name="arch" type="xml">
             <form string="Visit">
                 <header>
-                    <field name="state" widget="statusbar"/>
+                    <button name="action_request_cancellation" string="Request Cancellation" type="object"
+                            class="btn-warning" invisible="state != 'done'"/>
+                    <button name="action_approve_cancellation" string="Approve Cancellation" type="object"
+                            class="btn-primary" groups="sales_team.group_sale_manager"
+                            invisible="state != 'cancellation_requested'"/>
+                    <button name="action_reject_cancellation" string="Reject Cancellation" type="object"
+                            class="btn-secondary" groups="sales_team.group_sale_manager"
+                            invisible="state != 'cancellation_requested'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,done,cancellation_requested,cancelled"/>
                 </header>
                 <sheet>
                     <group>
@@ -56,7 +66,20 @@
                     <group string="Notes">
                         <field name="notes" nolabel="1" placeholder="Add visit notes here..."/>
                     </group>
-                    <div class="o_visit_geolocation_control">
+                    <group string="Cancellation" invisible="state not in ('done', 'cancellation_requested', 'cancelled')">
+                        <group>
+                            <field name="cancellation_reason" placeholder="Optional: add a reason before requesting cancellation"
+                                   readonly="state != 'done'"/>
+                            <field name="cancellation_request_date" readonly="1" invisible="state == 'done'"/>
+                        </group>
+                        <group invisible="state == 'done'">
+                            <field name="cancelled_by_id" readonly="1" invisible="state != 'cancelled'"/>
+                            <field name="rejection_reason" invisible="state not in ('cancellation_requested', 'done')"
+                                   placeholder="Optional reason when rejecting..."
+                                   readonly="state == 'done'"/>
+                        </group>
+                    </group>
+                    <div class="o_visit_geolocation_control" invisible="state != 'draft'">
                         <widget name="visit_geolocation_button"/>
                     </div>
                 </sheet>
@@ -75,7 +98,11 @@
                 <field name="lead_id" optional="show"/>
                 <field name="partner_id" optional="hide"/>
                 <field name="location_address" optional="show"/>
-                <field name="state" widget="badge" decoration-success="state == 'done'" decoration-info="state == 'draft'"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'done'"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'cancellation_requested'"
+                       decoration-muted="state == 'cancelled'"/>
                 <field name="maps_url" widget="url" text="Map" optional="show"/>
                 <field name="latitude" optional="hide"/>
                 <field name="longitude" optional="hide"/>
@@ -119,6 +146,23 @@
             </p>
             <p>
                 Track salesperson visits with geolocation to monitor field activities.
+            </p>
+        </field>
+    </record>
+
+    <!-- Cancellation Requests (for sales managers) -->
+    <record id="action_visit_tracker_cancellation_requests" model="ir.actions.act_window">
+        <field name="name">Cancellation Requests</field>
+        <field name="res_model">visit.tracker</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_visit_tracker_search"/>
+        <field name="context">{'search_default_cancellation_requested': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_empty_folder">
+                No pending cancellation requests.
+            </p>
+            <p>
+                Visits for which a salesperson has requested cancellation appear here. Use Approve or Reject on the form.
             </p>
         </field>
     </record>

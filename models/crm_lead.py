@@ -31,13 +31,19 @@ class CrmLead(models.Model):
     def action_check_in(self, lat, long, device_info, address=False):
         """Create a visit tracker record and mark it as checked in"""
         self.ensure_one()
+        
+        # Create the visit record first (in draft state)
         visit = self.env['visit.tracker'].create({
             'lead_id': self.id,
             'partner_id': self.partner_id.id if self.partner_id else False,
             'latitude': lat,
             'longitude': long,
             'device_info': device_info,
-            'location_address': address,
-            'state': 'done',
+            'state': 'draft',
         })
+        
+        # Call the visit tracker's action_check_in to handle address lookup
+        # This ensures the server-side geocoding is used
+        visit.action_check_in(lat, long, device_info, address)
+        
         return visit.id

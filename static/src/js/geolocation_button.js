@@ -5,10 +5,54 @@ import { useService } from "@web/core/utils/hooks";
 import { Component } from "@odoo/owl";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 
+// Service that runs geolocation + RPC outside any form component.
+// Used so the browser's geolocation callback is not tied to a component that may be destroyed on mobile.
+const visitCheckInService = {
+    dependencies: ["orm", "notification"],
+    start(env, { orm, notification }) {
+        const options = { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 };
+        return {
+            startCheckIn(recordId, modelName) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const { latitude, longitude } = position.coords;
+                        const device_info = navigator.userAgent;
+                        orm.call(modelName, "action_check_in", [[recordId], latitude, longitude, device_info, false])
+                            .then(() => {
+                                notification.add("Checked in successfully!", { type: "success" });
+                            })
+                            .catch((err) => {
+                                notification.add("Error during check-in: " + err.message, { type: "danger" });
+                            });
+                    },
+                    (error) => {
+                        let msg = "Error getting location.";
+                        switch (error.code) {
+                            case error.PERMISSION_DENIED:
+                                msg = "User denied the request for Geolocation.";
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                msg = "Location information is unavailable.";
+                                break;
+                            case error.TIMEOUT:
+                                msg = "The request to get user location timed out.";
+                                break;
+                            case error.UNKNOWN_ERROR:
+                                msg = "An unknown error occurred.";
+                                break;
+                        }
+                        notification.add(msg, { type: "danger" });
+                    },
+                    options
+                );
+            },
+        };
+    },
+};
+registry.category("services").add("visit_check_in", visitCheckInService);
+
 /**
  * Geolocation Button Widget for CRM Leads
- * This widget captures the user's location and creates a visit record
- * linked to the current lead/opportunity.
  */
 export class LeadGeolocationButton extends Component {
     static template = "sales_visit_tracking.LeadGeolocationButton";
@@ -17,19 +61,11 @@ export class LeadGeolocationButton extends Component {
     };
 
     setup() {
-        this.orm = useService("orm");
         this.notification = useService("notification");
-        this.action = useService("action");
+        this.visitCheckIn = useService("visit_check_in");
     }
 
     async onClickCheckIn() {
-        // if (!this.isMobileDevice()) {
-        //     this.notification.add("Please use a mobile device to check in.", {
-        //         type: "danger",
-        //     });
-        //     return;
-        // }
-
         if (!navigator.geolocation) {
             this.notification.add("Geolocation is not supported by your browser.", {
                 type: "danger",
@@ -37,42 +73,9 @@ export class LeadGeolocationButton extends Component {
             return;
         }
 
-        this.notification.add("Getting your location...", {
-            type: "info",
-        });
+        this.notification.add("Getting your location...", { type: "info" });
 
-        navigator.geolocation.getCurrentPosition(
-            (position) => this.onPositionSuccess(position),
-            (error) => this.onPositionError(error),
-            { enableHighAccuracy: true }
-        );
-    }
-
-    isMobileDevice() {
-        const ua = navigator.userAgent;
-        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-    }
-
-    async onPositionSuccess(position) {
-        const { latitude, longitude } = position.coords;
-        const device_info = navigator.userAgent;
-
-        // Try to get address via reverse geocoding (Nominatim/OpenStreetMap)
-        let address = false;
-        try {
-            const response = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-                { headers: { 'User-Agent': 'OdooVisitTracker/1.0' } }
-            );
-            if (response.ok) {
-                const data = await response.json();
-                address = data.display_name || false;
-            }
-        } catch (e) {
-            console.warn('Reverse geocoding failed:', e);
-        }
-
-        // Save the lead record first if it's new or unsaved
+        let leadId;
         try {
             const saved = await this.props.record.save();
             if (!saved) {
@@ -81,53 +84,13 @@ export class LeadGeolocationButton extends Component {
                 });
                 return;
             }
+            leadId = this.props.record.resId;
         } catch (error) {
-            this.notification.add("Error saving lead: " + error.message, {
-                type: "danger",
-            });
+            this.notification.add("Error saving lead: " + error.message, { type: "danger" });
             return;
         }
 
-        // Call the check-in method on crm.lead to create a visit record
-        try {
-            await this.orm.call(
-                "crm.lead",
-                "action_check_in",
-                [[this.props.record.resId], latitude, longitude, device_info, address]
-            );
-
-            this.notification.add("Checked in successfully!", {
-                type: "success",
-            });
-
-            // Reload the view to show updated data
-            await this.props.record.load();
-        } catch (error) {
-            this.notification.add("Error during check-in: " + error.message, {
-                type: "danger",
-            });
-        }
-    }
-
-    onPositionError(error) {
-        let msg = "Error getting location.";
-        switch (error.code) {
-            case error.PERMISSION_DENIED:
-                msg = "User denied the request for Geolocation.";
-                break;
-            case error.POSITION_UNAVAILABLE:
-                msg = "Location information is unavailable.";
-                break;
-            case error.TIMEOUT:
-                msg = "The request to get user location timed out.";
-                break;
-            case error.UNKNOWN_ERROR:
-                msg = "An unknown error occurred.";
-                break;
-        }
-        this.notification.add(msg, {
-            type: "danger",
-        });
+        this.visitCheckIn.startCheckIn(leadId, "crm.lead");
     }
 }
 
@@ -138,8 +101,7 @@ registry.category("view_widgets").add("lead_geolocation_button", {
 
 
 /**
- * Original Visit Tracker Geolocation Button (for visit.tracker form view)
- * Kept for backward compatibility if visit tracker form is still used directly
+ * Visit Tracker Geolocation Button (for visit.tracker form view)
  */
 export class VisitGeolocationButton extends Component {
     static template = "sales_visit_tracking.VisitGeolocationButton";
@@ -148,9 +110,8 @@ export class VisitGeolocationButton extends Component {
     };
 
     setup() {
-        this.orm = useService("orm");
         this.notification = useService("notification");
-        this.action = useService("action");
+        this.visitCheckIn = useService("visit_check_in");
     }
 
     async onClickCheckIn() {
@@ -161,36 +122,9 @@ export class VisitGeolocationButton extends Component {
             return;
         }
 
-        navigator.geolocation.getCurrentPosition(
-            (position) => this.onPositionSuccess(position),
-            (error) => this.onPositionError(error),
-            { enableHighAccuracy: true }
-        );
-    }
+        this.notification.add("Getting your location...", { type: "info" });
 
-    isMobileDevice() {
-        const ua = navigator.userAgent;
-        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-    }
-
-    async onPositionSuccess(position) {
-        const { latitude, longitude } = position.coords;
-        const device_info = navigator.userAgent;
-
-        let address = false;
-        try {
-            const response = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-                { headers: { 'User-Agent': 'OdooVisitTracker/1.0' } }
-            );
-            if (response.ok) {
-                const data = await response.json();
-                address = data.display_name || false;
-            }
-        } catch (e) {
-            console.warn('Reverse geocoding failed:', e);
-        }
-
+        let resId;
         try {
             const saved = await this.props.record.save();
             if (!saved) {
@@ -199,51 +133,13 @@ export class VisitGeolocationButton extends Component {
                 });
                 return;
             }
+            resId = this.props.record.resId;
         } catch (error) {
-            this.notification.add("Error saving record: " + error.message, {
-                type: "danger",
-            });
+            this.notification.add("Error saving record: " + error.message, { type: "danger" });
             return;
         }
 
-        try {
-            await this.orm.call(
-                "visit.tracker",
-                "action_check_in",
-                [[this.props.record.resId], latitude, longitude, device_info, address]
-            );
-
-            this.notification.add("Checked in successfully!", {
-                type: "success",
-            });
-
-            await this.props.record.load();
-        } catch (error) {
-            this.notification.add("Error during check-in: " + error.message, {
-                type: "danger",
-            });
-        }
-    }
-
-    onPositionError(error) {
-        let msg = "Error getting location.";
-        switch (error.code) {
-            case error.PERMISSION_DENIED:
-                msg = "User denied the request for Geolocation.";
-                break;
-            case error.POSITION_UNAVAILABLE:
-                msg = "Location information is unavailable.";
-                break;
-            case error.TIMEOUT:
-                msg = "The request to get user location timed out.";
-                break;
-            case error.UNKNOWN_ERROR:
-                msg = "An unknown error occurred.";
-                break;
-        }
-        this.notification.add(msg, {
-            type: "danger",
-        });
+        this.visitCheckIn.startCheckIn(resId, "visit.tracker");
     }
 }
 
