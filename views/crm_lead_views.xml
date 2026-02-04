@@ -8,6 +8,9 @@
         <field name="arch" type="xml">
             <!-- Add Check-in button before Convert to Opportunity button -->
             <xpath expr="//button[@name='%(crm.action_crm_lead2opportunity_partner)d']" position="before">
+                <field name="has_active_visit" invisible="1"/>
+                <button name="action_check_out" type="object" string="Check Out"
+                        class="btn btn-secondary me-2" invisible="not has_active_visit"/>
                 <div class="o_lead_geolocation_control d-inline-block me-2">
                     <widget name="lead_geolocation_button"/>
                 </div>

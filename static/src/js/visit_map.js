@@ -97,7 +97,7 @@ export class VisitMapDashboard extends Component {
         this.clearMap();
 
         try {
-            const domain = [["state", "=", "done"]];
+            const domain = [["state", "in", ["done", "checked_out"]]];
 
             if (this.state.selectedUser) {
                 domain.push(["user_id", "=", parseInt(this.state.selectedUser)]);

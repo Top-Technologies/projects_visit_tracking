@@ -11,6 +11,7 @@
                 <field name="user_id"/>
                 <field name="location_address"/>
                 <filter string="Checked In" name="checked_in" domain="[('state', '=', 'done')]"/>
+                <filter string="Checked Out" name="checked_out" domain="[('state', '=', 'checked_out')]"/>
                 <filter string="Draft" name="draft" domain="[('state', '=', 'draft')]"/>
                 <filter string="Cancellation Requested" name="cancellation_requested" domain="[('state', '=', 'cancellation_requested')]"/>
                 <filter string="Cancelled" name="cancelled" domain="[('state', '=', 'cancelled')]"/>
@@ -37,15 +38,17 @@
         <field name="arch" type="xml">
             <form string="Visit">
                 <header>
+                    <button name="action_check_out" string="Check Out" type="object"
+                            class="btn-primary" invisible="state != 'done'"/>
                     <button name="action_request_cancellation" string="Request Cancellation" type="object"
-                            class="btn-warning" invisible="state != 'done'"/>
+                            class="btn-warning" invisible="state not in ('done', 'checked_out')"/>
                     <button name="action_approve_cancellation" string="Approve Cancellation" type="object"
                             class="btn-primary" groups="sales_team.group_sale_manager"
                             invisible="state != 'cancellation_requested'"/>
                     <button name="action_reject_cancellation" string="Reject Cancellation" type="object"
                             class="btn-secondary" groups="sales_team.group_sale_manager"
                             invisible="state != 'cancellation_requested'"/>
-                    <field name="state" widget="statusbar" statusbar_visible="draft,done,cancellation_requested,cancelled"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,done,checked_out,cancellation_requested,cancelled"/>
                 </header>
                 <sheet>
                     <group>
@@ -54,6 +57,8 @@
                             <field name="partner_id"/>
                             <field name="user_id"/>
                             <field name="visit_date"/>
+                            <field name="check_out_date"/>
+                            <field name="duration_minutes"/>
                         </group>
                         <group string="Location">
                             <field name="latitude"/>
@@ -66,17 +71,17 @@
                     <group string="Notes">
                         <field name="notes" nolabel="1" placeholder="Add visit notes here..."/>
                     </group>
-                    <group string="Cancellation" invisible="state not in ('done', 'cancellation_requested', 'cancelled')">
+                    <group string="Cancellation" invisible="state not in ('done', 'checked_out', 'cancellation_requested', 'cancelled')">
                         <group>
                             <field name="cancellation_reason" placeholder="Optional: add a reason before requesting cancellation"
-                                   readonly="state != 'done'"/>
-                            <field name="cancellation_request_date" readonly="1" invisible="state == 'done'"/>
+                                   readonly="state not in ('done', 'checked_out')"/>
+                            <field name="cancellation_request_date" readonly="1" invisible="state in ('done', 'checked_out')"/>
                         </group>
-                        <group invisible="state == 'done'">
+                        <group invisible="state in ('done', 'checked_out')">
                             <field name="cancelled_by_id" readonly="1" invisible="state != 'cancelled'"/>
-                            <field name="rejection_reason" invisible="state not in ('cancellation_requested', 'done')"
+                            <field name="rejection_reason" invisible="state not in ('cancellation_requested', 'done', 'checked_out')"
                                    placeholder="Optional reason when rejecting..."
-                                   readonly="state == 'done'"/>
+                                   readonly="state in ('done', 'checked_out')"/>
                         </group>
                     </group>
                     <div class="o_visit_geolocation_control" invisible="state != 'draft'">
@@ -94,16 +99,19 @@
         <field name="arch" type="xml">
             <list string="Visits" default_order="visit_date desc">
                 <field name="visit_date"/>
+                <field name="check_out_date" optional="hide"/>
                 <field name="user_id"/>
                 <field name="lead_id" optional="show"/>
                 <field name="partner_id" optional="hide"/>
                 <field name="location_address" optional="show"/>
                 <field name="state" widget="badge"
-                       decoration-success="state == 'done'"
+                       decoration-success="state == 'checked_out'"
+                       decoration-bf="state == 'done'"
                        decoration-info="state == 'draft'"
                        decoration-warning="state == 'cancellation_requested'"
                        decoration-muted="state == 'cancelled'"/>
                 <field name="maps_url" widget="url" text="Map" optional="show"/>
+                <field name="duration_minutes" optional="hide"/>
                 <field name="latitude" optional="hide"/>
                 <field name="longitude" optional="hide"/>
             </list>

@@ -8,43 +8,129 @@ import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 // Service that runs geolocation + RPC outside any form component.
 // Used so the browser's geolocation callback is not tied to a component that may be destroyed on mobile.
 const visitCheckInService = {
-    dependencies: ["orm", "notification"],
-    start(env, { orm, notification }) {
+    dependencies: ["orm", "notification", "action"],
+    start(env, { orm, notification, action }) {
         const options = { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 };
+
+        function formatRpcError(err) {
+            return (
+                err?.data?.message ||
+                err?.message ||
+                "Unknown error"
+            );
+        }
+
+        function buildActiveVisitMessage(info) {
+            const leadName = info?.lead_name || "";
+            const partnerName = info?.partner_name || "";
+            let place = leadName || partnerName || "another lead";
+            if (leadName && partnerName && partnerName !== leadName) {
+                place = `${leadName} (${partnerName})`;
+            }
+            const since = info?.visit_date ? String(info.visit_date) : "";
+            return since
+                ? `You already have an active check-in at ${place} since ${since}.`
+                : `You already have an active check-in at ${place}.`;
+        }
+
+        function openVisitForm(visitId) {
+            if (!visitId) return;
+            action.doAction({
+                type: "ir.actions.act_window",
+                res_model: "visit.tracker",
+                res_id: visitId,
+                views: [[false, "form"]],
+                target: "current",
+            });
+        }
+
         return {
             startCheckIn(recordId, modelName) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const { latitude, longitude } = position.coords;
-                        const device_info = navigator.userAgent;
-                        orm.call(modelName, "action_check_in", [[recordId], latitude, longitude, device_info, false])
-                            .then(() => {
-                                notification.add("Checked in successfully!", { type: "success" });
-                            })
-                            .catch((err) => {
-                                notification.add("Error during check-in: " + err.message, { type: "danger" });
+                orm.call("visit.tracker", "get_active_check_in_info", [[]])
+                    .then((info) => {
+                        if (info?.active) {
+                            const msg = buildActiveVisitMessage(info);
+                            notification.add(msg + " Opening your active visit...", {
+                                type: "warning",
+                                sticky: true,
                             });
-                    },
-                    (error) => {
-                        let msg = "Error getting location.";
-                        switch (error.code) {
-                            case error.PERMISSION_DENIED:
-                                msg = "User denied the request for Geolocation.";
-                                break;
-                            case error.POSITION_UNAVAILABLE:
-                                msg = "Location information is unavailable.";
-                                break;
-                            case error.TIMEOUT:
-                                msg = "The request to get user location timed out.";
-                                break;
-                            case error.UNKNOWN_ERROR:
-                                msg = "An unknown error occurred.";
-                                break;
+                            openVisitForm(info.id);
+                            return;
                         }
-                        notification.add(msg, { type: "danger" });
-                    },
-                    options
-                );
+
+                        navigator.geolocation.getCurrentPosition(
+                            (position) => {
+                                const { latitude, longitude } = position.coords;
+                                const device_info = navigator.userAgent;
+                                orm.call(modelName, "action_check_in", [[recordId], latitude, longitude, device_info, false])
+                                    .then((result) => {
+                                        notification.add("Checked in successfully!", { type: "success" });
+                                        if (modelName === "crm.lead" && result) {
+                                            openVisitForm(result);
+                                        }
+                                    })
+                                    .catch((err) => {
+                                        notification.add("Error during check-in: " + formatRpcError(err), { type: "danger" });
+                                    });
+                            },
+                            (error) => {
+                                let msg = "Error getting location.";
+                                switch (error.code) {
+                                    case error.PERMISSION_DENIED:
+                                        msg = "User denied the request for Geolocation.";
+                                        break;
+                                    case error.POSITION_UNAVAILABLE:
+                                        msg = "Location information is unavailable.";
+                                        break;
+                                    case error.TIMEOUT:
+                                        msg = "The request to get user location timed out.";
+                                        break;
+                                    case error.UNKNOWN_ERROR:
+                                        msg = "An unknown error occurred.";
+                                        break;
+                                }
+                                notification.add(msg, { type: "danger" });
+                            },
+                            options
+                        );
+                    })
+                    .catch(() => {
+                        navigator.geolocation.getCurrentPosition(
+                            (position) => {
+                                const { latitude, longitude } = position.coords;
+                                const device_info = navigator.userAgent;
+                                orm.call(modelName, "action_check_in", [[recordId], latitude, longitude, device_info, false])
+                                    .then((result) => {
+                                        notification.add("Checked in successfully!", { type: "success" });
+                                        if (modelName === "crm.lead" && result) {
+                                            openVisitForm(result);
+                                        }
+                                    })
+                                    .catch((err) => {
+                                        notification.add("Error during check-in: " + formatRpcError(err), { type: "danger" });
+                                    });
+                            },
+                            (error) => {
+                                let msg = "Error getting location.";
+                                switch (error.code) {
+                                    case error.PERMISSION_DENIED:
+                                        msg = "User denied the request for Geolocation.";
+                                        break;
+                                    case error.POSITION_UNAVAILABLE:
+                                        msg = "Location information is unavailable.";
+                                        break;
+                                    case error.TIMEOUT:
+                                        msg = "The request to get user location timed out.";
+                                        break;
+                                    case error.UNKNOWN_ERROR:
+                                        msg = "An unknown error occurred.";
+                                        break;
+                                }
+                                notification.add(msg, { type: "danger" });
+                            },
+                            options
+                        );
+                    });
             },
         };
     },
