@@ -3,6 +3,7 @@
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { Component } from "@odoo/owl";
+import { useState } from "@odoo/owl";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 
 // Service that runs geolocation + RPC outside any form component.
@@ -45,93 +46,86 @@ const visitCheckInService = {
         }
 
         return {
-            startCheckIn(recordId, modelName) {
-                orm.call("visit.tracker", "get_active_check_in_info", [[]])
-                    .then((info) => {
-                        if (info?.active) {
-                            const msg = buildActiveVisitMessage(info);
-                            notification.add(msg + " Opening your active visit...", {
-                                type: "warning",
-                                sticky: true,
-                            });
-                            openVisitForm(info.id);
-                            return;
-                        }
+            startCheckIn(recordId, modelName, actionType = 'check_in') {
+                const method = actionType === 'check_out' ? 'action_check_out' : 'action_check_in';
+                const successMsg = actionType === 'check_out' ? "Checked out successfully!" : "Checked in successfully!";
 
-                        navigator.geolocation.getCurrentPosition(
-                            (position) => {
-                                const { latitude, longitude } = position.coords;
-                                const device_info = navigator.userAgent;
-                                orm.call(modelName, "action_check_in", [[recordId], latitude, longitude, device_info, false])
-                                    .then((result) => {
-                                        notification.add("Checked in successfully!", { type: "success" });
-                                        if (modelName === "crm.lead" && result) {
-                                            openVisitForm(result);
-                                        }
-                                    })
-                                    .catch((err) => {
-                                        notification.add("Error during check-in: " + formatRpcError(err), { type: "danger" });
-                                    });
-                            },
-                            (error) => {
-                                let msg = "Error getting location.";
-                                switch (error.code) {
-                                    case error.PERMISSION_DENIED:
-                                        msg = "User denied the request for Geolocation.";
-                                        break;
-                                    case error.POSITION_UNAVAILABLE:
-                                        msg = "Location information is unavailable.";
-                                        break;
-                                    case error.TIMEOUT:
-                                        msg = "The request to get user location timed out.";
-                                        break;
-                                    case error.UNKNOWN_ERROR:
-                                        msg = "An unknown error occurred.";
-                                        break;
-                                }
-                                notification.add(msg, { type: "danger" });
-                            },
-                            options
-                        );
-                    })
-                    .catch(() => {
-                        navigator.geolocation.getCurrentPosition(
-                            (position) => {
-                                const { latitude, longitude } = position.coords;
-                                const device_info = navigator.userAgent;
-                                orm.call(modelName, "action_check_in", [[recordId], latitude, longitude, device_info, false])
-                                    .then((result) => {
-                                        notification.add("Checked in successfully!", { type: "success" });
-                                        if (modelName === "crm.lead" && result) {
-                                            openVisitForm(result);
-                                        }
-                                    })
-                                    .catch((err) => {
-                                        notification.add("Error during check-in: " + formatRpcError(err), { type: "danger" });
-                                    });
-                            },
-                            (error) => {
-                                let msg = "Error getting location.";
-                                switch (error.code) {
-                                    case error.PERMISSION_DENIED:
-                                        msg = "User denied the request for Geolocation.";
-                                        break;
-                                    case error.POSITION_UNAVAILABLE:
-                                        msg = "Location information is unavailable.";
-                                        break;
-                                    case error.TIMEOUT:
-                                        msg = "The request to get user location timed out.";
-                                        break;
-                                    case error.UNKNOWN_ERROR:
-                                        msg = "An unknown error occurred.";
-                                        break;
-                                }
-                                notification.add(msg, { type: "danger" });
-                            },
-                            options
-                        );
-                    });
+                if (actionType === 'check_in') {
+                    // Check existing check-ins only for check-in action
+                    return orm.call("visit.tracker", "get_active_check_in_info", [])
+                        .then((info) => {
+                            if (info?.active) {
+                                const msg = buildActiveVisitMessage(info);
+                                notification.add(msg + " Opening your active visit...", {
+                                    type: "warning",
+                                    sticky: true,
+                                });
+                                openVisitForm(info.id);
+                                return;
+                            }
+                            // Proceed to geolocation
+                            return this._performGeoCall(recordId, modelName, method, successMsg, options, notification, orm, action);
+                        });
+                } else {
+                    // Direct check-out with geolocation
+                    return this._performGeoCall(recordId, modelName, method, successMsg, options, notification, orm, action);
+                }
             },
+
+            _performGeoCall(recordId, modelName, method, successMsg, options, notification, orm, action) {
+                return new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const { latitude, longitude } = position.coords;
+                            const device_info = navigator.userAgent;
+                            // For record methods, Odoo expects the first positional argument to be the list of ids.
+                            // So we must pass: [[recordId], ...methodArgs]
+                            const args = [[recordId], latitude, longitude];
+                            if (method === 'action_check_in') {
+                                args.push(device_info, false);
+                            }
+
+                            orm.call(modelName, method, args)
+                                .then((result) => {
+                                    notification.add(successMsg, { type: "success" });
+                                    if (modelName === "crm.lead" && method === "action_check_in" && Number.isInteger(result)) {
+                                        openVisitForm(result);
+                                    } else if (modelName === "visit.tracker") {
+                                        // Reload view or close window if needed, or just let form reload
+                                        action.switchView("form", { resId: recordId });
+                                    } else {
+                                        action.switchView("form", { resId: recordId });
+                                    }
+                                    resolve(result);
+                                })
+                                .catch((err) => {
+                                    notification.add("Error: " + formatRpcError(err), { type: "danger" });
+                                    reject(err);
+                                });
+                        },
+                        (error) => {
+                            let msg = "Error getting location.";
+                            switch (error.code) {
+                                case error.PERMISSION_DENIED:
+                                    msg = "User denied the request for Geolocation.";
+                                    break;
+                                case error.POSITION_UNAVAILABLE:
+                                    msg = "Location information is unavailable.";
+                                    break;
+                                case error.TIMEOUT:
+                                    msg = "The request to get user location timed out.";
+                                    break;
+                                case error.UNKNOWN_ERROR:
+                                    msg = "An unknown error occurred.";
+                                    break;
+                            }
+                            notification.add(msg, { type: "danger" });
+                            reject(error);
+                        },
+                        options
+                    );
+                });
+            }
         };
     },
 };
@@ -156,9 +150,13 @@ export class LeadGeolocationButton extends Component {
     setup() {
         this.notification = useService("notification");
         this.visitCheckIn = useService("visit_check_in");
+        this.state = useState({ processing: false });
     }
 
     async onClickCheckIn() {
+        if (this.state.processing) {
+            return;
+        }
         if (!isMobileDevice()) {
             this.notification.add("Check-in is only allowed from mobile devices.", {
                 type: "danger",
@@ -177,6 +175,7 @@ export class LeadGeolocationButton extends Component {
 
         let leadId;
         try {
+            this.state.processing = true;
             const saved = await this.props.record.save();
             if (!saved) {
                 this.notification.add("Failed to save the lead. Please check required fields.", {
@@ -188,9 +187,17 @@ export class LeadGeolocationButton extends Component {
         } catch (error) {
             this.notification.add("Error saving lead: " + error.message, { type: "danger" });
             return;
+        } finally {
+            this.state.processing = false;
         }
 
-        this.visitCheckIn.startCheckIn(leadId, "crm.lead");
+        const actionType = this.props.record.data.has_active_visit ? "check_out" : "check_in";
+        this.state.processing = true;
+        try {
+            await this.visitCheckIn.startCheckIn(leadId, "crm.lead", actionType);
+        } finally {
+            this.state.processing = false;
+        }
     }
 }
 
@@ -212,11 +219,29 @@ export class VisitGeolocationButton extends Component {
     setup() {
         this.notification = useService("notification");
         this.visitCheckIn = useService("visit_check_in");
+        this.state = useState({ processing: false });
+    }
+
+    get buttonText() {
+        if (this.props.record.data.state === 'done') {
+            return "Check Out";
+        }
+        return "Check In";
+    }
+
+    get buttonClass() {
+        if (this.props.record.data.state === 'done') {
+            return "btn btn-primary";
+        }
+        return "btn btn-primary";
     }
 
     async onClickCheckIn() {
+        if (this.state.processing) {
+            return;
+        }
         if (!isMobileDevice()) {
-            this.notification.add("Check-in is only allowed from mobile devices.", {
+            this.notification.add("Action is only allowed from mobile devices.", {
                 type: "danger",
             });
             return;
@@ -229,10 +254,12 @@ export class VisitGeolocationButton extends Component {
             return;
         }
 
+        const actionType = this.props.record.data.state === 'done' ? 'check_out' : 'check_in';
         this.notification.add("Getting your location...", { type: "info" });
 
         let resId;
         try {
+            this.state.processing = true;
             const saved = await this.props.record.save();
             if (!saved) {
                 this.notification.add("Failed to save the record. Please check required fields.", {
@@ -244,9 +271,16 @@ export class VisitGeolocationButton extends Component {
         } catch (error) {
             this.notification.add("Error saving record: " + error.message, { type: "danger" });
             return;
+        } finally {
+            this.state.processing = false;
         }
 
-        this.visitCheckIn.startCheckIn(resId, "visit.tracker");
+        this.state.processing = true;
+        try {
+            await this.visitCheckIn.startCheckIn(resId, "visit.tracker", actionType);
+        } finally {
+            this.state.processing = false;
+        }
     }
 }
 

@@ -39,7 +39,7 @@
             <form string="Visit">
                 <header>
                     <button name="action_check_out" string="Check Out" type="object"
-                            class="btn-primary" invisible="state != 'done'"/>
+                            class="btn-primary" invisible="1"/>
                     <button name="action_request_cancellation" string="Request Cancellation" type="object"
                             class="btn-warning" invisible="state not in ('done', 'checked_out')"/>
                     <button name="action_approve_cancellation" string="Approve Cancellation" type="object"
@@ -59,12 +59,20 @@
                             <field name="visit_date"/>
                             <field name="check_out_date"/>
                             <field name="duration_minutes"/>
+                            <field name="route_line_id" readonly="1"/>
+                            <field name="planned_duration_minutes" invisible="not route_line_id"/>
+                            <field name="is_planned" widget="boolean_toggle" readonly="1" invisible="1"/>
                         </group>
                         <group string="Location">
                             <field name="latitude"/>
                             <field name="longitude"/>
                             <field name="location_address"/>
                             <field name="maps_url" widget="url" text="View on Map"/>
+                            <separator string="Check Out Location"/>
+                            <field name="check_out_latitude"/>
+                            <field name="check_out_longitude"/>
+                            <field name="check_out_location_address"/>
+                            <field name="check_out_maps_url" widget="url" text="View on Map"/>
                             <field name="device_info"/>
                         </group>
                     </group>
@@ -84,7 +92,7 @@
                                    readonly="state in ('done', 'checked_out')"/>
                         </group>
                     </group>
-                    <div class="o_visit_geolocation_control" invisible="state != 'draft'">
+                    <div class="o_visit_geolocation_control" invisible="state not in ('draft', 'done')">
                         <widget name="visit_geolocation_button"/>
                     </div>
                 </sheet>

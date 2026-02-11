@@ -34,6 +34,11 @@
     <menuitem id="menu_visit_report"
               name="Reports"
               parent="menu_visit_tracking_main"
-              action="action_visit_tracker_report"
               sequence="20"/>
+
+    <menuitem id="menu_visit_report_analysis"
+              name="Visit Analysis"
+              parent="menu_visit_report"
+              action="action_visit_report"
+              sequence="10"/>
 </odoo>

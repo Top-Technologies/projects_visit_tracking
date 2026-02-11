@@ -1,3 +1,13 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_visit_tracker_user,visit.tracker.user,model_visit_tracker,base.group_user,1,1,1,0
+access_visit_tracker_user,visit.tracker.user,model_visit_tracker,sales_team.group_sale_salesman,1,1,1,0
 access_visit_tracker_manager,visit.tracker.manager,model_visit_tracker,sales_team.group_sale_manager,1,1,1,1
+
+access_visit_route_user,visit.route.user,model_visit_route,sales_team.group_sale_salesman,1,1,1,0
+access_visit_route_manager,visit.route.manager,model_visit_route,sales_team.group_sale_manager,1,1,1,1
+
+access_visit_route_line_user,visit.route.line.user,model_visit_route_line,sales_team.group_sale_salesman,1,1,1,0
+access_visit_route_line_manager,visit.route.line.manager,model_visit_route_line,sales_team.group_sale_manager,1,1,1,1
+
+access_visit_report_user,visit.report.user,model_visit_report,sales_team.group_sale_salesman,1,0,0,0
+access_visit_report_user_all,visit.report.user.all,model_visit_report,sales_team.group_sale_salesman_all_leads,1,0,0,0
+access_visit_report_manager,visit.report.manager,model_visit_report,sales_team.group_sale_manager,1,0,0,0

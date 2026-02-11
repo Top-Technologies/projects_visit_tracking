@@ -10,7 +10,7 @@
             <xpath expr="//button[@name='%(crm.action_crm_lead2opportunity_partner)d']" position="before">
                 <field name="has_active_visit" invisible="1"/>
                 <button name="action_check_out" type="object" string="Check Out"
-                        class="btn btn-secondary me-2" invisible="not has_active_visit"/>
+                        class="btn btn-secondary me-2" invisible="1"/>
                 <div class="o_lead_geolocation_control d-inline-block me-2">
                     <widget name="lead_geolocation_button"/>
                 </div>
@@ -26,6 +26,19 @@
                         <span class="o_stat_text">Visits</span>
                     </div>
                 </button>
+            </xpath>
+
+            <xpath expr="//sheet//group" position="after">
+                <group string="Manual Location">
+                    <group>
+                        <field name="manual_location_address" placeholder="General address / landmark description..."/>
+                        <field name="manual_location_is_approx"/>
+                    </group>
+                    <group>
+                        <field name="manual_latitude"/>
+                        <field name="manual_longitude"/>
+                    </group>
+                </group>
             </xpath>
         </field>
     </record>

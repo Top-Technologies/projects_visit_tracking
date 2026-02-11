@@ -16,9 +16,13 @@
     'data': [
         'security/ir.model.access.csv',
         'security/security.xml',
+        'security/visit_route_security.xml',
         'views/visit_tracker_views.xml',
         'views/crm_lead_views.xml',
+        'report/visit_report_views.xml',
         'views/visit_dashboard_views.xml',
+        'views/visit_route_views.xml',
+
     ],
     'assets': {
         'web.assets_backend': [

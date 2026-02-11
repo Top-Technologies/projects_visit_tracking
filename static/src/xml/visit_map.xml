@@ -8,7 +8,7 @@
                     <i class="fa fa-map-marker text-primary me-2"/>Visit Map Dashboard
                 </h4>
                 
-                <div class="d-flex align-items-center gap-2">
+                <div class="d-flex align-items-center gap-2" t-if="state.isManager">
                     <label class="mb-0 text-muted">Salesperson:</label>
                     <select class="form-select form-select-sm" style="width: 180px;" t-on-change="onUserChange">
                         <option value="">All Salespeople</option>
@@ -34,15 +34,14 @@
             <!-- Stats bar -->
             <div class="visit-stats bg-light border-bottom p-2 d-flex gap-4 px-3">
                 <div class="stat-item">
-                    <span class="text-muted" t-if="!state.selectedUser">Active Salespeople:</span>
-                    <span class="text-muted" t-else="">Total Visits:</span>
+                    <span class="text-muted">Total Visits:</span>
                     <strong class="ms-1 text-primary" t-esc="state.visits.length"/>
                 </div>
                 <div class="stat-item" t-if="state.selectedUser">
-                    <span class="text-muted">Route shown for selected salesperson</span>
+                    <span class="text-muted">Assigned route + visits shown for selected salesperson</span>
                 </div>
-                 <div class="stat-item" t-else="">
-                    <span class="text-muted">Showing latest location per salesperson</span>
+                <div class="stat-item" t-else="">
+                    <span class="text-muted">Showing visits for all salespeople (route overlay requires selecting one)</span>
                 </div>
             </div>
 
@@ -69,12 +68,12 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <t t-foreach="state.visits" t-as="visit" t-key="visit.id">
+                        <t t-foreach="state.visits" t-as="visit" t-key="visit.id" t-foreach-index="visit_index">
                             <tr>
                                 <td><span class="badge bg-primary" t-esc="visit_index + 1"/></td>
                                 <td t-esc="new Date(visit.visit_date).toLocaleTimeString()"/>
-                                <td t-esc="visit.user_id[1]"/>
-                                <td t-esc="visit.partner_id[1]"/>
+                                <td t-esc="visit.user_id and visit.user_id[1] or '-'"/>
+                                <td t-esc="visit.partner_id and visit.partner_id[1] or '-'"/>
                                 <!-- <td class="text-truncate" style="max-width: 300px;" t-esc="visit.location_address || '-'"/> -->
                             </tr>
                         </t>

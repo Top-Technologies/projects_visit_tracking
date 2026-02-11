@@ -2,17 +2,31 @@
 <templates xml:space="preserve">
     <!-- Template for CRM Lead Check-in Button -->
     <t t-name="sales_visit_tracking.LeadGeolocationButton" owl="1">
-        <button type="button" class="btn btn-primary" t-on-click="onClickCheckIn">
-            <i class="fa fa-map-marker me-1"/>Check In
-        </button>
+        <t t-if="props.record.data.has_active_visit">
+            <button type="button" class="btn btn-secondary" t-on-click="onClickCheckIn" t-att-disabled="state.processing">
+                <i class="fa fa-map-marker me-1"/>Check Out
+            </button>
+        </t>
+        <t t-else="">
+            <button type="button" class="btn btn-primary" t-on-click="onClickCheckIn" t-att-disabled="state.processing">
+                <i class="fa fa-map-marker me-1"/>Check In
+            </button>
+        </t>
     </t>
 
     <!-- Template for Visit Tracker Check-in Button (backward compatibility) -->
     <t t-name="sales_visit_tracking.VisitGeolocationButton" owl="1">
         <div class="o_visit_geolocation_button">
-            <button type="button" class="btn btn-primary" t-on-click="onClickCheckIn">
-                <i class="fa fa-map-marker me-1"/>Check In
-            </button>
+            <t t-if="props.record.data.state === 'done'">
+                <button type="button" class="btn btn-secondary" t-on-click="onClickCheckIn" t-att-disabled="state.processing">
+                    <i class="fa fa-map-marker me-1"/>Check Out
+                </button>
+            </t>
+            <t t-else="">
+                <button type="button" class="btn btn-primary" t-on-click="onClickCheckIn" t-att-disabled="state.processing">
+                    <i class="fa fa-map-marker me-1"/>Check In
+                </button>
+            </t>
         </div>
     </t>
 </templates>
