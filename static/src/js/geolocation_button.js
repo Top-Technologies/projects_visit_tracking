@@ -65,6 +65,11 @@ const visitCheckInService = {
                             }
                             // Proceed to geolocation
                             return this._performGeoCall(recordId, modelName, method, successMsg, options, notification, orm, action);
+                        })
+                        .catch((err) => {
+                            notification.add("Error: " + formatRpcError(err), { type: "danger" });
+                            // Do not reject: avoid UncaughtPromiseError in Owl for expected failures.
+                            return false;
                         });
                 } else {
                     // Direct check-out with geolocation
@@ -73,7 +78,7 @@ const visitCheckInService = {
             },
 
             _performGeoCall(recordId, modelName, method, successMsg, options, notification, orm, action) {
-                return new Promise((resolve, reject) => {
+                return new Promise((resolve) => {
                     navigator.geolocation.getCurrentPosition(
                         (position) => {
                             const { latitude, longitude } = position.coords;
@@ -100,7 +105,8 @@ const visitCheckInService = {
                                 })
                                 .catch((err) => {
                                     notification.add("Error: " + formatRpcError(err), { type: "danger" });
-                                    reject(err);
+                                    // Do not reject: avoid UncaughtPromiseError in Owl for expected failures.
+                                    resolve(false);
                                 });
                         },
                         (error) => {
@@ -120,7 +126,8 @@ const visitCheckInService = {
                                     break;
                             }
                             notification.add(msg, { type: "danger" });
-                            reject(error);
+                            // Do not reject: avoid UncaughtPromiseError in Owl for expected failures.
+                            resolve(false);
                         },
                         options
                     );
