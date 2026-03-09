@@ -8,6 +8,7 @@ export class VisitMapDashboard extends Component {
     static template = "sales_visit_tracking.VisitMapDashboard";
     static props = {
         action: { type: Object, optional: true },
+        "*": true,
     };
 
     setup() {
@@ -416,3 +417,4 @@ export class VisitMapDashboard extends Component {
 }
 
 registry.category("actions").add("sales_visit_tracking.visit_map_dashboard", VisitMapDashboard);
+
