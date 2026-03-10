@@ -3,13 +3,11 @@
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { Component, xml, onMounted, onWillUnmount, useState } from "@odoo/owl";
+import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 
 export class VisitMapDashboard extends Component {
     static template = "sales_visit_tracking.VisitMapDashboard";
-    static props = {
-        action: { type: Object, optional: true },
-        "*": true,
-    };
+    static props = { ...standardActionServiceProps };
 
     setup() {
         this.orm = useService("orm");
