@@ -4,13 +4,18 @@
         <field name="name">visit.route.tree</field>
         <field name="model">visit.route</field>
         <field name="arch" type="xml">
-            <list string="Routes" default_order="route_date desc" decoration-muted="state == 'draft'" decoration-bf="state == 'confirmed'" decoration-info="state == 'wait_approval'">
+            <list string="Field Routes" default_order="route_date desc"
+                  decoration-muted="state == 'draft'"
+                  decoration-bf="state == 'confirmed'"
+                  decoration-info="state == 'wait_approval'">
                 <field name="name"/>
                 <field name="route_date"/>
                 <field name="user_id"/>
                 <field name="stop_count"/>
                 <field name="total_estimated_duration" widget="float_time"/>
-                <field name="state" widget="badge" decoration-success="state == 'confirmed'" decoration-info="state == 'wait_approval'"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'confirmed'"
+                       decoration-info="state == 'wait_approval'"/>
             </list>
         </field>
     </record>
@@ -19,11 +24,15 @@
         <field name="name">visit.route.form</field>
         <field name="model">visit.route</field>
         <field name="arch" type="xml">
-            <form string="Route">
+            <form string="Field Route">
                 <header>
-                    <button name="action_request_approval" string="Request Approval" type="object" class="btn-primary" invisible="state != 'draft'"/>
-                    <button name="action_approve" string="Approve" type="object" class="btn-primary" groups="sales_team.group_sale_manager" invisible="state != 'wait_approval'"/>
-                    <button name="action_reset_draft" string="Reset to Draft" type="object" groups="sales_team.group_sale_manager" invisible="state == 'draft'"/>
+                    <button name="action_request_approval" string="Request Approval" type="object"
+                            class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_approve" string="Approve" type="object"
+                            class="btn-primary" groups="project.group_project_manager"
+                            invisible="state != 'wait_approval'"/>
+                    <button name="action_reset_draft" string="Reset to Draft" type="object"
+                            groups="project.group_project_manager" invisible="state == 'draft'"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,wait_approval,confirmed"/>
                 </header>
                 <sheet>
@@ -31,23 +40,24 @@
                         <group>
                             <field name="name" readonly="state != 'draft'"/>
                             <field name="route_date" readonly="state != 'draft'"/>
-                            <field name="user_id" groups="sales_team.group_sale_manager" readonly="state != 'draft'"/>
-                            <field name="user_id" groups="!sales_team.group_sale_manager" readonly="1"/>
+                            <field name="user_id" groups="project.group_project_manager" readonly="state != 'draft'"/>
+                            <field name="user_id" groups="!project.group_project_manager" readonly="1"/>
                         </group>
                         <group>
                             <field name="stop_count" readonly="1"/>
+                            <field name="total_estimated_duration" widget="float_time" readonly="1"/>
                         </group>
                     </group>
                     <notebook>
-                        <page string="Stops">
+                        <page string="Project Stops">
                             <field name="line_ids" readonly="state != 'draft'">
                                 <list editable="bottom">
-                                    <field name="sequence"/>
-                                    <field name="lead_id"/>
-                                    <field name="partner_id"/>
-                                    <field name="latitude" required="1"/>
-                                    <field name="longitude" required="1"/>
-                                    <field name="estimated_duration_minutes" sum="Total Planned Time"/>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="project_id"/>
+                                    <field name="location_address"/>
+                                    <field name="latitude"/>
+                                    <field name="longitude"/>
+                                    <field name="estimated_duration_minutes" sum="Total Planned Time (min)"/>
                                 </list>
                             </field>
                         </page>
@@ -58,15 +68,24 @@
     </record>
 
     <record id="action_visit_route" model="ir.actions.act_window">
-        <field name="name">Routes</field>
+        <field name="name">Field Routes</field>
         <field name="res_model">visit.route</field>
         <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Plan your first field route!
+            </p>
+            <p>
+                Create a daily route plan listing which project sites you will visit.
+                Submit it for your manager's approval before heading out.
+            </p>
+        </field>
     </record>
 
     <menuitem id="menu_visit_routes"
-              name="Routes"
-              parent="menu_visit_tracking_main"
+              name="Field Routes"
+              parent="menu_field_tracking_main"
               action="action_visit_route"
               sequence="8"
-              groups="sales_team.group_sale_salesman"/>
+              groups="project.group_project_user"/>
 </odoo>

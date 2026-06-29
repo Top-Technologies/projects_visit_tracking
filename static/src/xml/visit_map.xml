@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
-    <t t-name="sales_visit_tracking.VisitMapDashboard" owl="1">
+    <t t-name="projects_visit_tracking.VisitMapDashboard" owl="1">
         <div class="visit-map-dashboard h-100 d-flex flex-column">
             <!-- Header with filters -->
             <div class="visit-map-header bg-white border-bottom p-3 d-flex align-items-center gap-3 flex-wrap">
@@ -9,10 +9,10 @@
                 </h4>
                 
                 <div class="d-flex align-items-center gap-2" t-if="state.isManager">
-                    <label class="mb-0 text-muted">Salesperson:</label>
+                    <label class="mb-0 text-muted">Team Member:</label>
                     <select class="form-select form-select-sm" style="width: 180px;" t-on-change="onUserChange">
-                        <option value="">All Salespeople</option>
-                        <t t-foreach="state.salespeople" t-as="user" t-key="user.id">
+                        <option value="">All Team Members</option>
+                        <t t-foreach="state.users" t-as="user" t-key="user.id">
                             <option t-att-value="user.id" t-att-selected="state.selectedUser == user.id">
                                 <t t-esc="user.name"/>
                             </option>
@@ -38,10 +38,10 @@
                     <strong class="ms-1 text-primary" t-esc="state.visits.length"/>
                 </div>
                 <div class="stat-item" t-if="state.selectedUser">
-                    <span class="text-muted">Assigned route + visits shown for selected salesperson</span>
+                    <span class="text-muted">Assigned route + visits shown for selected team member</span>
                 </div>
                 <div class="stat-item" t-else="">
-                    <span class="text-muted">Showing visits for all salespeople (route overlay requires selecting one)</span>
+                    <span class="text-muted">Showing visits for all team members (route overlay requires selecting one)</span>
                 </div>
             </div>
 
@@ -62,8 +62,8 @@
                         <tr>
                             <th>#</th>
                             <th>Time</th>
-                            <th>Salesperson</th>
-                            <th>Customer</th>
+                            <th>Team Member</th>
+                            <th>Project</th>
                             <!-- <th>Address</th> -->
                         </tr>
                     </thead>
@@ -73,7 +73,7 @@
                                 <td><span class="badge bg-primary" t-esc="visit_index + 1"/></td>
                                 <td t-esc="new Date(visit.visit_date).toLocaleTimeString()"/>
                                 <td t-esc="visit.user_id and visit.user_id[1] or '-'"/>
-                                <td t-esc="visit.partner_id and visit.partner_id[1] or '-'"/>
+                                <td t-esc="visit.project_id and visit.project_id[1] or '-'"/>
                                 <!-- <td class="text-truncate" style="max-width: 300px;" t-esc="visit.location_address || '-'"/> -->
                             </tr>
                         </t>

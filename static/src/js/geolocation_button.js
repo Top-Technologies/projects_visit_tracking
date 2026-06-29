@@ -138,18 +138,19 @@ const visitCheckInService = {
 };
 registry.category("services").add("visit_check_in", visitCheckInService);
 
-// Helper to detect mobile devices via User Agent
-function isMobileDevice() {
-    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-    const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
-    return mobileRegex.test(userAgent);
-}
+    // // Helper to detect mobile devices via User Agent
+    // // Disabled for testing on desktop — allows check-in from any device
+    // function isMobileDevice() {
+    //     const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+    //     const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+    //     return mobileRegex.test(userAgent);
+    // }
 
 /**
  * Geolocation Button Widget for CRM Leads
  */
 export class LeadGeolocationButton extends Component {
-    static template = "sales_visit_tracking.LeadGeolocationButton";
+    static template = "projects_visit_tracking.ProjectGeolocationButton";
     static props = {
         ...standardWidgetProps,
     };
@@ -164,12 +165,13 @@ export class LeadGeolocationButton extends Component {
         if (this.state.processing) {
             return;
         }
-        if (!isMobileDevice()) {
-            this.notification.add("Check-in is only allowed from mobile devices.", {
-                type: "danger",
-            });
-            return;
-        }
+        // // Disabled for testing on desktop — allows check-in from any device
+        // if (!isMobileDevice()) {
+        //     this.notification.add("Check-in is only allowed from mobile devices.", {
+        //         type: "danger",
+        //     });
+        //     return;
+        // }
 
         if (!navigator.geolocation) {
             this.notification.add("Geolocation is not supported by your browser.", {
@@ -218,7 +220,7 @@ registry.category("view_widgets").add("lead_geolocation_button", {
  * Visit Tracker Geolocation Button (for visit.tracker form view)
  */
 export class VisitGeolocationButton extends Component {
-    static template = "sales_visit_tracking.VisitGeolocationButton";
+    static template = "projects_visit_tracking.VisitGeolocationButton";
     static props = {
         ...standardWidgetProps,
     };
@@ -247,12 +249,13 @@ export class VisitGeolocationButton extends Component {
         if (this.state.processing) {
             return;
         }
-        if (!isMobileDevice()) {
-            this.notification.add("Action is only allowed from mobile devices.", {
-                type: "danger",
-            });
-            return;
-        }
+        // // Disabled for testing on desktop — allows check-in from any device
+        // if (!isMobileDevice()) {
+        //     this.notification.add("Action is only allowed from mobile devices.", {
+        //         type: "danger",
+        //     });
+        //     return;
+        // }
 
         if (!navigator.geolocation) {
             this.notification.add("Geolocation is not supported by your browser.", {

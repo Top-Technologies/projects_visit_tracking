@@ -5,9 +5,8 @@
         <field name="name">visit.tracker.search</field>
         <field name="model">visit.tracker</field>
         <field name="arch" type="xml">
-            <search string="Search Visits">
-                <field name="lead_id"/>
-                <field name="partner_id"/>
+            <search string="Search Field Check-ins">
+                <field name="project_id"/>
                 <field name="user_id"/>
                 <field name="location_address"/>
                 <filter string="Checked In" name="checked_in" domain="[('state', '=', 'done')]"/>
@@ -16,15 +15,14 @@
                 <filter string="Cancellation Requested" name="cancellation_requested" domain="[('state', '=', 'cancellation_requested')]"/>
                 <filter string="Cancelled" name="cancelled" domain="[('state', '=', 'cancelled')]"/>
                 <separator/>
-                <filter string="Today" name="today" domain="[('visit_date', '&gt;=', (context_today()).strftime('%Y-%m-%d')), ('visit_date', '&lt;', (context_today() + relativedelta(days=1)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Today" name="today" domain="[('visit_date', '&gt;=', context_today().strftime('%Y-%m-%d')), ('visit_date', '&lt;', (context_today() + relativedelta(days=1)).strftime('%Y-%m-%d'))]"/>
                 <filter string="This Week" name="this_week" domain="[('visit_date', '&gt;=', (context_today() - relativedelta(days=context_today().weekday())).strftime('%Y-%m-%d'))]"/>
-                <filter string="This Month" name="this_month" domain="[('visit_date', '&gt;=', (context_today()).strftime('%Y-%m-01'))]"/>
+                <filter string="This Month" name="this_month" domain="[('visit_date', '&gt;=', context_today().strftime('%Y-%m-01'))]"/>
                 <separator/>
-                <group expand="0" string="Group By">
-                    <filter string="Lead/Opportunity" name="group_lead" context="{'group_by': 'lead_id'}"/>
-                    <filter string="Salesperson" name="group_user" context="{'group_by': 'user_id'}"/>
-                    <filter string="Customer" name="group_partner" context="{'group_by': 'partner_id'}"/>
-                    <filter string="Visit Date" name="group_date" context="{'group_by': 'visit_date:day'}"/>
+                <group>
+                    <filter string="Project" name="group_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="Team Member" name="group_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="Check-in Date" name="group_date" context="{'group_by': 'visit_date:day'}"/>
                     <filter string="Status" name="group_state" context="{'group_by': 'state'}"/>
                 </group>
             </search>
@@ -36,25 +34,24 @@
         <field name="name">visit.tracker.form</field>
         <field name="model">visit.tracker</field>
         <field name="arch" type="xml">
-            <form string="Visit">
+            <form string="Field Check-in">
                 <header>
                     <button name="action_check_out" string="Check Out" type="object"
                             class="btn-primary" invisible="1"/>
                     <button name="action_request_cancellation" string="Request Cancellation" type="object"
                             class="btn-warning" invisible="state not in ('done', 'checked_out')"/>
                     <button name="action_approve_cancellation" string="Approve Cancellation" type="object"
-                            class="btn-primary" groups="sales_team.group_sale_manager"
+                            class="btn-primary" groups="project.group_project_manager"
                             invisible="state != 'cancellation_requested'"/>
                     <button name="action_reject_cancellation" string="Reject Cancellation" type="object"
-                            class="btn-secondary" groups="sales_team.group_sale_manager"
+                            class="btn-secondary" groups="project.group_project_manager"
                             invisible="state != 'cancellation_requested'"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,done,checked_out,cancellation_requested,cancelled"/>
                 </header>
                 <sheet>
                     <group>
                         <group string="Visit Information">
-                            <field name="lead_id"/>
-                            <field name="partner_id"/>
+                            <field name="project_id"/>
                             <field name="user_id"/>
                             <field name="visit_date"/>
                             <field name="check_out_date"/>
@@ -67,12 +64,12 @@
                             <field name="latitude"/>
                             <field name="longitude"/>
                             <field name="location_address"/>
-                            <field name="maps_url" widget="url" text="View on Map"/>
-                            <separator string="Check Out Location"/>
+                            <field name="maps_url" widget="url" text="View Check-in on Map"/>
+                            <separator string="Check-out Location"/>
                             <field name="check_out_latitude"/>
                             <field name="check_out_longitude"/>
                             <field name="check_out_location_address"/>
-                            <field name="check_out_maps_url" widget="url" text="View on Map"/>
+                            <field name="check_out_maps_url" widget="url" text="View Check-out on Map"/>
                             <field name="device_info"/>
                         </group>
                     </group>
@@ -105,12 +102,11 @@
         <field name="name">visit.tracker.tree</field>
         <field name="model">visit.tracker</field>
         <field name="arch" type="xml">
-            <list string="Visits" default_order="visit_date desc">
+            <list string="Field Check-ins" default_order="visit_date desc">
                 <field name="visit_date"/>
                 <field name="check_out_date" optional="hide"/>
                 <field name="user_id"/>
-                <field name="lead_id" optional="show"/>
-                <field name="partner_id" optional="hide"/>
+                <field name="project_id" optional="show"/>
                 <field name="location_address" optional="show"/>
                 <field name="state" widget="badge"
                        decoration-success="state == 'checked_out'"
@@ -131,7 +127,7 @@
         <field name="name">visit.tracker.pivot</field>
         <field name="model">visit.tracker</field>
         <field name="arch" type="xml">
-            <pivot string="Visit Analysis" sample="1">
+            <pivot string="Check-in Analysis" sample="1">
                 <field name="user_id" type="row"/>
                 <field name="visit_date" type="col" interval="day"/>
             </pivot>
@@ -143,7 +139,7 @@
         <field name="name">visit.tracker.graph</field>
         <field name="model">visit.tracker</field>
         <field name="arch" type="xml">
-            <graph string="Visit Statistics" type="bar" sample="1">
+            <graph string="Check-in Statistics" type="bar" sample="1">
                 <field name="user_id"/>
             </graph>
         </field>
@@ -151,22 +147,22 @@
 
     <!-- Main Action -->
     <record id="action_visit_tracker" model="ir.actions.act_window">
-        <field name="name">Visits</field>
+        <field name="name">Field Check-ins</field>
         <field name="res_model">visit.tracker</field>
         <field name="view_mode">list,form,pivot,graph</field>
         <field name="search_view_id" ref="view_visit_tracker_search"/>
         <field name="context">{'search_default_checked_in': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
-                Record your first visit!
+                Record your first field check-in!
             </p>
             <p>
-                Track salesperson visits with geolocation to monitor field activities.
+                Track your team's location and check-ins at project sites.
             </p>
         </field>
     </record>
 
-    <!-- Cancellation Requests (for sales managers) -->
+    <!-- Cancellation Requests (for project managers) -->
     <record id="action_visit_tracker_cancellation_requests" model="ir.actions.act_window">
         <field name="name">Cancellation Requests</field>
         <field name="res_model">visit.tracker</field>
@@ -178,14 +174,14 @@
                 No pending cancellation requests.
             </p>
             <p>
-                Visits for which a salesperson has requested cancellation appear here. Use Approve or Reject on the form.
+                Check-ins for which a team member has requested cancellation appear here.
             </p>
         </field>
     </record>
 
-    <!-- Report Action (with default grouping) -->
+    <!-- Report Action -->
     <record id="action_visit_tracker_report" model="ir.actions.act_window">
-        <field name="name">Visit Reports</field>
+        <field name="name">Check-in Reports</field>
         <field name="res_model">visit.tracker</field>
         <field name="view_mode">graph,pivot,list</field>
         <field name="search_view_id" ref="view_visit_tracker_search"/>

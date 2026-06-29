@@ -7,9 +7,7 @@
         <field name="arch" type="xml">
             <search string="Search Visit Reports">
                 <field name="user_id"/>
-                <field name="lead_id"/>
-                <field name="partner_id"/>
-                <field name="team_id"/>
+                <field name="project_id"/>
                 <filter string="Today" name="today" 
                         domain="[('report_date', '=', context_today().strftime('%Y-%m-%d'))]"/>
                 <filter string="This Week" name="this_week" 
@@ -22,11 +20,9 @@
                 <filter string="Under Target" name="under_target"
                         domain="[('visit_completion_rate', '&lt;', 100), ('planned_visits', '&gt;', 0)]"/>
                 <separator/>
-                <group expand="0" string="Group By">
-                    <filter string="Salesperson" name="group_user" context="{'group_by': 'user_id'}"/>
-                    <filter string="Sales Team" name="group_team" context="{'group_by': 'team_id'}"/>
-                    <filter string="Lead" name="group_lead" context="{'group_by': 'lead_id'}"/>
-                    <filter string="Customer" name="group_partner" context="{'group_by': 'partner_id'}"/>
+                <group>
+                    <filter string="Team Member" name="group_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="Project" name="group_project" context="{'group_by': 'project_id'}"/>
                     <filter string="Date" name="group_date" context="{'group_by': 'report_date:day'}"/>
                     <filter string="Week" name="group_week" context="{'group_by': 'report_date:week'}"/>
                     <filter string="Month" name="group_month" context="{'group_by': 'report_date:month'}"/>
@@ -43,8 +39,7 @@
             <list string="Visit Analysis" create="0" edit="0" delete="0">
                 <field name="report_date"/>
                 <field name="user_id"/>
-                <field name="lead_id" optional="show"/>
-                <field name="partner_id" optional="hide"/>
+                <field name="project_id" optional="show"/>
                 <field name="planned_visits" sum="Total Planned"/>
                 <field name="actual_visits" sum="Total Actual"/>
                 <field name="visit_variance" decoration-success="visit_variance &gt;= 0" decoration-danger="visit_variance &lt; 0"/>
@@ -68,11 +63,6 @@
                 <field name="actual_visits" type="measure"/>
                 <field name="planned_duration" type="measure"/>
                 <field name="actual_duration" type="measure"/>
-                <field name="lead_count" type="measure"/>
-                <field name="opportunity_count" type="measure"/>
-                <field name="won_count" type="measure"/>
-                <field name="lead_to_opportunity_rate" type="measure"/>
-                <field name="opportunity_to_won_rate" type="measure"/>
             </pivot>
         </field>
     </record>
@@ -102,7 +92,7 @@
                 No visit data to analyze yet.
             </p>
             <p>
-                This report compares planned route visits with actual check-ins to help analyze salesperson performance.
+                This report compares planned route visits with actual check-ins to help analyze field team performance.
             </p>
         </field>
     </record>

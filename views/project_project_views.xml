@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Extend project.project form view to add Check-in button and smart button -->
+    <record id="project_project_view_form_inherit_field_tracking" model="ir.ui.view">
+        <field name="name">project.project.form.inherit.field.tracking</field>
+        <field name="model">project.project</field>
+        <field name="inherit_id" ref="project.edit_project"/>
+        <field name="arch" type="xml">
+
+            <!-- Smart button for check-in count -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_check_ins" type="object"
+                        class="oe_stat_button" icon="fa-map-marker"
+                        invisible="visit_count == 0"
+                        groups="project.group_project_user">
+                    <div class="o_stat_info">
+                        <field name="visit_count" class="o_stat_value"/>
+                        <span class="o_stat_text">Check-ins</span>
+                    </div>
+                </button>
+            </xpath>
+
+            <!-- Check-in / Check-out geolocation button in the form footer area -->
+            <xpath expr="//sheet" position="after">
+                <div class="o_project_field_tracking_control"
+                     groups="project.group_project_user">
+                    <field name="has_active_visit" invisible="1"/>
+                    <widget name="project_geolocation_button"/>
+                </div>
+            </xpath>
+
+        </field>
+    </record>
+</odoo>

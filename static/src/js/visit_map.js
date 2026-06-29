@@ -6,7 +6,7 @@ import { Component, xml, onMounted, onWillUnmount, useState } from "@odoo/owl";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 
 export class VisitMapDashboard extends Component {
-    static template = "sales_visit_tracking.VisitMapDashboard";
+    static template = "projects_visit_tracking.VisitMapDashboard";
     static props = { ...standardActionServiceProps };
 
     setup() {
@@ -14,7 +14,7 @@ export class VisitMapDashboard extends Component {
         this.notification = useService("notification");
         this.state = useState({
             visits: [],
-            salespeople: [],
+            users: [],
             selectedUser: null,
             selectedDate: this.getTodayString(),
             isManager: false,
@@ -81,7 +81,7 @@ export class VisitMapDashboard extends Component {
 
         await this.loadUserRole();
         if (this.state.isManager) {
-            await this.loadSalespeople();
+            await this.loadUsers();
         } else {
             const me = await this.orm.call("visit.route", "get_current_user", []);
             if (me?.id) {
@@ -174,13 +174,13 @@ export class VisitMapDashboard extends Component {
 
     async loadUserRole() {
         try {
-            this.state.isManager = await this.orm.call("visit.route", "is_sales_manager", []);
+            this.state.isManager = await this.orm.call("visit.route", "is_project_manager", []);
         } catch (e) {
             this.state.isManager = false;
         }
     }
 
-    async loadSalespeople() {
+    async loadUsers() {
         try {
             const users = await this.orm.searchRead(
                 "res.users",
@@ -188,9 +188,9 @@ export class VisitMapDashboard extends Component {
                 ["id", "name"],
                 { limit: 100 }
             );
-            this.state.salespeople = users;
+            this.state.users = users;
         } catch (e) {
-            console.error("Failed to load salespeople:", e);
+            console.error("Failed to load users:", e);
         }
     }
 
@@ -222,7 +222,7 @@ export class VisitMapDashboard extends Component {
             let visits = await this.orm.searchRead(
                 "visit.tracker",
                 domain,
-                ["id", "user_id", "partner_id", "visit_date", "latitude", "longitude", "location_address", "notes"],
+                ["id", "user_id", "project_id", "visit_date", "latitude", "longitude", "location_address", "notes"],
                 options
             );
 
@@ -305,8 +305,7 @@ export class VisitMapDashboard extends Component {
 
             const popupContent = `
                 <div style="min-width: 220px;">
-                    <strong>${stop.lead_name || ''}</strong><br/>
-                    ${stop.partner_name ? `<small>Customer: ${stop.partner_name}</small><br/>` : ''}
+                    <strong>${stop.project_name || 'Unknown Project'}</strong><br/>
                     ${stop.address ? `<small> ${String(stop.address).substring(0, 100)}...</small><br/>` : ''}
                     <small>Pin type: ${pinType}</small>
                 </div>
@@ -370,8 +369,8 @@ export class VisitMapDashboard extends Component {
             const visitDate = new Date(visit.visit_date).toLocaleTimeString();
             const popupContent = `
                 <div style="min-width: 200px;">
-                    <strong>${visit.partner_id[1]}</strong><br/>
-                    <small>Salesperson: ${visit.user_id[1]}</small><br/>
+                    <strong>${visit.project_id ? visit.project_id[1] : 'Unknown Project'}</strong><br/>
+                    <small>Team Member: ${visit.user_id[1]}</small><br/>
                     <small>Time: ${visitDate}</small><br/>
                     ${visit.location_address ? `<small> ${visit.location_address.substring(0, 100)}...</small><br/>` : ''}
                     ${visit.notes ? `<small> ${visit.notes}</small>` : ''}
@@ -414,5 +413,4 @@ export class VisitMapDashboard extends Component {
     }
 }
 
-registry.category("actions").add("sales_visit_tracking.visit_map_dashboard", VisitMapDashboard);
-
+registry.category("actions").add("projects_visit_tracking.visit_map_dashboard", VisitMapDashboard);

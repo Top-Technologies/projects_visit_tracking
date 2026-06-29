@@ -2,24 +2,24 @@
 <odoo>
     <data noupdate="1">
 
-        <!-- Salesperson: See own routes -->
-        <record id="rule_visit_route_salesman_see_own" model="ir.rule">
-            <field name="name">Salesperson See Own Routes</field>
+        <!-- Team member: See own routes -->
+        <record id="rule_visit_route_user_see_own" model="ir.rule">
+            <field name="name">Field Route: User See Own Routes</field>
             <field name="model_id" ref="model_visit_route"/>
             <field name="domain_force">[('user_id', '=', user.id)]</field>
-            <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]"/>
+            <field name="groups" eval="[(4, ref('project.group_project_user'))]"/>
             <field name="perm_read" eval="1"/>
             <field name="perm_write" eval="0"/>
             <field name="perm_create" eval="0"/>
             <field name="perm_unlink" eval="0"/>
         </record>
 
-        <!-- Salesperson: Create/Edit/Delete Own Draft Routes (Created by themselves) -->
-        <record id="rule_visit_route_salesman_manage_own_draft" model="ir.rule">
-            <field name="name">Salesperson Manage Own Draft Routes</field>
+        <!-- Team member: Create/Edit/Delete Own Draft Routes -->
+        <record id="rule_visit_route_user_manage_own_draft" model="ir.rule">
+            <field name="name">Field Route: User Manage Own Draft Routes</field>
             <field name="model_id" ref="model_visit_route"/>
             <field name="domain_force">[('user_id', '=', user.id), ('state', '=', 'draft'), ('create_uid', '=', user.id)]</field>
-            <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]"/>
+            <field name="groups" eval="[(4, ref('project.group_project_user'))]"/>
             <field name="perm_read" eval="0"/>
             <field name="perm_write" eval="1"/>
             <field name="perm_create" eval="1"/>
@@ -28,10 +28,10 @@
 
         <!-- Manager: Full Access -->
         <record id="rule_visit_route_manager_all" model="ir.rule">
-            <field name="name">Manager Full Access Routes</field>
+            <field name="name">Field Route: Manager Full Access</field>
             <field name="model_id" ref="model_visit_route"/>
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4, ref('sales_team.group_sale_manager'))]"/>
+            <field name="groups" eval="[(4, ref('project.group_project_manager'))]"/>
         </record>
 
     </data>

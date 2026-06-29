@@ -1,15 +1,22 @@
+import logging
+import re
+
+import requests
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+
+_logger = logging.getLogger(__name__)
 
 
 class VisitRoute(models.Model):
     _name = "visit.route"
-    _description = "Visit Route Assignment"
+    _description = "Field Visit Route Assignment"
     _order = "route_date desc, user_id"
 
     name = fields.Char(required=True, default=lambda self: self._default_name())
     user_id = fields.Many2one(
-        "res.users", string="Salesperson", required=True,
+        "res.users", string="Team Member", required=True,
         default=lambda self: self.env.user
     )
     state = fields.Selection([
@@ -28,21 +35,18 @@ class VisitRoute(models.Model):
         help="Sum of estimated duration for all stops"
     )
 
-    _sql_constraints = [
-        (
-            'route_user_date_unique',
-            'unique(user_id, route_date)',
-            'A salesperson can only have one route per day.'
-        ),
-    ]
+    _route_user_date_unique = models.Constraint(
+        'unique(user_id, route_date)',
+        'A team member can only have one route per day.'
+    )
 
     @api.model
     def _default_name(self):
         return _("Route")
 
     @api.model
-    def is_sales_manager(self):
-        return bool(self.env.user.has_group('sales_team.group_sale_manager'))
+    def is_project_manager(self):
+        return bool(self.env.user.has_group('project.group_project_manager'))
 
     @api.model
     def get_current_user(self, *args, **kwargs):
@@ -65,32 +69,27 @@ class VisitRoute(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        # Manager created routes are auto-confirmed (approved) if assigned to others
-        is_manager = self.env.user.has_group('sales_team.group_sale_manager')
+        is_manager = self.env.user.has_group('project.group_project_manager')
         for vals in vals_list:
             if not is_manager:
                 vals['user_id'] = self.env.user.id
-                vals['state'] = 'draft' # Salespeople always start in draft
+                vals['state'] = 'draft'
             elif vals.get('user_id') and vals['user_id'] != self.env.user.id:
-                 # Manager creating for someone else -> Auto-approve
-                 vals['state'] = 'confirmed'
+                # Manager creating for someone else → Auto-approve
+                vals['state'] = 'confirmed'
         return super().create(vals_list)
 
     def write(self, vals):
-        is_manager = self.env.user.has_group('sales_team.group_sale_manager')
-        
-        # Non-managers cannot change user_id
+        is_manager = self.env.user.has_group('project.group_project_manager')
+
         if 'user_id' in vals and not is_manager:
-            raise UserError(_('Only managers can assign routes to other users.'))
-            
+            raise UserError(_('Only project managers can assign routes to other team members.'))
+
         for route in self:
-            # Prevent salespeople from editing if not in draft
             if not is_manager and route.state != 'draft':
-                 raise UserError(_('You cannot edit a route that is pending approval or already approved.'))
-            
-            # Prevent salespeople from editing manager-created routes even in draft (if that happens)
+                raise UserError(_('You cannot edit a route that is pending approval or already approved.'))
             if not is_manager and route.create_uid.id != self.env.user.id:
-                 raise UserError(_('You cannot edit a route created by your manager.'))
+                raise UserError(_('You cannot edit a route created by your manager.'))
 
         return super().write(vals)
 
@@ -103,13 +102,13 @@ class VisitRoute(models.Model):
             route.state = 'wait_approval'
 
     def action_approve(self):
-        if not self.env.user.has_group('sales_team.group_sale_manager'):
-            raise UserError(_('Only managers can approve routes.'))
+        if not self.env.user.has_group('project.group_project_manager'):
+            raise UserError(_('Only project managers can approve routes.'))
         self.write({'state': 'confirmed'})
 
     def action_reset_draft(self):
-        if not self.env.user.has_group('sales_team.group_sale_manager'):
-            raise UserError(_('Only managers can reset routes to draft.'))
+        if not self.env.user.has_group('project.group_project_manager'):
+            raise UserError(_('Only project managers can reset routes to draft.'))
         self.write({'state': 'draft'})
 
     @api.model
@@ -131,44 +130,22 @@ class VisitRoute(models.Model):
             }
 
         lines = route.line_ids.sorted(key=lambda l: (l.sequence, l.id))
-        lead_ids = lines.mapped("lead_id").ids
 
         stops = []
         for idx, line in enumerate(lines, start=1):
-            lead = line.lead_id
-
-            partner_lat = False
-            partner_lon = False
-            if lead.partner_id and "partner_latitude" in lead.partner_id._fields and "partner_longitude" in lead.partner_id._fields:
-                partner_lat = lead.partner_id.partner_latitude
-                partner_lon = lead.partner_id.partner_longitude
+            project = line.project_id
 
             latitude = line.latitude
             longitude = line.longitude
 
-            if lead.manual_location_is_approx:
-                pin_type = "manual_approx"
-            else:
-                eps = 0.000001
-                is_partner_coord = bool(
-                    partner_lat is not False and partner_lon is not False and
-                    abs(latitude - partner_lat) <= eps and
-                    abs(longitude - partner_lon) <= eps
-                )
-                pin_type = "known" if is_partner_coord else "manual_exact"
-
-            address = lead.manual_location_address or False
-
             stops.append({
                 "sequence": idx,
                 "route_line_id": line.id,
-                "lead_id": lead.id,
-                "lead_name": lead.display_name,
-                "partner_name": lead.partner_id.display_name if lead.partner_id else False,
+                "project_id": project.id,
+                "project_name": project.display_name if project else '',
                 "latitude": latitude,
                 "longitude": longitude,
-                "pin_type": pin_type,
-                "address": address,
+                "address": line.location_address or False,
             })
 
         return {
@@ -182,79 +159,152 @@ class VisitRoute(models.Model):
 
 class VisitRouteLine(models.Model):
     _name = "visit.route.line"
-    _description = "Visit Route Stop"
+    _description = "Field Visit Route Stop"
     _order = "sequence, id"
 
     route_id = fields.Many2one("visit.route", required=True, ondelete="cascade")
     sequence = fields.Integer(default=10)
-    lead_id = fields.Many2one("crm.lead", string="Lead/Opportunity", required=True)
-    partner_id = fields.Many2one("res.partner", related="lead_id.partner_id", readonly=True)
+    project_id = fields.Many2one("project.project", string="Project", required=True)
+    location_address = fields.Char(
+        string="Location / Address",
+        help=(
+            "Paste a Google Maps link for this stop - Latitude/Longitude "
+            "below will be filled in automatically. You can also type a "
+            "plain address/description instead; in that case set the "
+            "coordinates manually."
+        )
+    )
     latitude = fields.Float(string="Latitude", digits=(10, 7))
     longitude = fields.Float(string="Longitude", digits=(10, 7))
     estimated_duration_minutes = fields.Float(
-        string="Planned Duration",
+        string="Planned Duration (min)",
         default=30.0,
         help="Estimated time to spend at this stop (in minutes)"
     )
 
-    _sql_constraints = [
-        ("route_lead_unique", "unique(route_id, lead_id)", "This lead is already on the route."),
-    ]
+    _route_project_unique = models.Constraint(
+        "unique(route_id, project_id)",
+        "This project is already on the route."
+    )
 
-    @api.onchange("lead_id")
-    def _onchange_lead_id_set_coordinates(self):
-        for line in self:
-            if not line.lead_id:
+    # Shortened Google Maps links carry no coordinates of their own - the
+    # actual link only appears after the browser follows the redirect.
+    _MAPS_SHORT_HOSTS = ('maps.app.goo.gl', 'goo.gl', 'g.co')
+
+    # Checked in order of accuracy. The "!3d..!4d.." pair is the exact pin
+    # location Google embeds in /maps/place/.../data=... links - prefer it
+    # over "@lat,lng", which is just the viewport center and can be off if
+    # the map was panned/zoomed before the link was copied.
+    _COORD_URL_PATTERNS = (
+        r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)',
+        r'[?&]q=(-?\d+\.\d+),\s*(-?\d+\.\d+)',
+        r'[?&]ll=(-?\d+\.\d+),\s*(-?\d+\.\d+)',
+        r'[?&]destination=(-?\d+\.\d+),\s*(-?\d+\.\d+)',
+        r'[?&]daddr=(-?\d+\.\d+),\s*(-?\d+\.\d+)',
+        r'@(-?\d+\.\d+),(-?\d+\.\d+)',
+    )
+
+    @staticmethod
+    def _looks_like_maps_link(value):
+        if not value:
+            return False
+        value = value.strip().lower()
+        return (
+            value.startswith('http://') or value.startswith('https://')
+            or 'google.com/maps' in value or 'goo.gl' in value or 'g.co/maps' in value
+        )
+
+    @api.model
+    def _resolve_short_maps_url(self, url):
+        """Follow the redirect for shortened links (maps.app.goo.gl, goo.gl/maps,
+        g.co/maps) to get the real URL that actually contains coordinates."""
+        try:
+            response = requests.get(
+                url, allow_redirects=True, timeout=10,
+                headers={'User-Agent': 'OdooFieldRoute/19.0 (contact@top-tech.com)'}
+            )
+            return response.url
+        except Exception as e:
+            _logger.warning("Could not resolve shortened Google Maps link %s: %s", url, e)
+            return url
+
+    @api.model
+    def _extract_lat_lng_from_url(self, url):
+        """Try to pull (lat, lng) floats out of a Google Maps link. Returns False if none found."""
+        if not url:
+            return False
+        url = url.strip()
+        if not url.lower().startswith(('http://', 'https://')):
+            url = 'https://' + url
+
+        if any(host in url for host in self._MAPS_SHORT_HOSTS):
+            url = self._resolve_short_maps_url(url)
+
+        for pattern in self._COORD_URL_PATTERNS:
+            match = re.search(pattern, url)
+            if not match:
                 continue
-            lat, lon = line._get_default_coordinates_from_lead(line.lead_id)
-            if lat is not False and lon is not False:
-                line.latitude = lat
-                line.longitude = lon
+            try:
+                lat, lng = float(match.group(1)), float(match.group(2))
+            except (TypeError, ValueError):
+                continue
+            if -90.0 <= lat <= 90.0 and -180.0 <= lng <= 180.0:
+                return lat, lng
+        return False
 
-    def _get_partner_coordinates(self, partner):
-        if not partner:
-            return (False, False)
-        if "partner_latitude" not in partner._fields or "partner_longitude" not in partner._fields:
-            return (False, False)
-        lat = partner.partner_latitude
-        lon = partner.partner_longitude
-        if lat is False or lon is False:
-            return (False, False)
-        return (lat, lon)
+    @api.onchange('location_address')
+    def _onchange_location_address(self):
+        value = (self.location_address or '').strip()
+        if not value or not self._looks_like_maps_link(value):
+            return
 
-    def _get_default_coordinates_from_lead(self, lead):
-        if not lead:
-            return (False, False)
-        lat, lon = self._get_partner_coordinates(lead.partner_id)
-        if lat is not False and lon is not False:
-            return (lat, lon)
-        if lead.manual_latitude is not False and lead.manual_longitude is not False:
-            return (lead.manual_latitude, lead.manual_longitude)
-        return (False, False)
+        result = self._extract_lat_lng_from_url(value)
+        if result:
+            self.latitude, self.longitude = result
+        else:
+            return {
+                'warning': {
+                    'title': _('Could not read coordinates from link'),
+                    'message': _(
+                        "This looks like a Google Maps link but no recognizable "
+                        "pin location was found in it. Latitude/Longitude were "
+                        "left unchanged - please double check the link or enter "
+                        "the coordinates manually."
+                    ),
+                }
+            }
+
+    @api.model
+    def _autofill_coordinates_from_vals(self, vals):
+        """Server-side fallback for records created/updated outside the form
+        view (API calls, imports, etc.), where the onchange above never runs."""
+        url = vals.get('location_address')
+        if not url or 'latitude' in vals or 'longitude' in vals:
+            return
+        if not self._looks_like_maps_link(url):
+            return
+        result = self._extract_lat_lng_from_url(url)
+        if result:
+            vals['latitude'], vals['longitude'] = result
 
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
-            if vals.get("lead_id") and ("latitude" not in vals or "longitude" not in vals):
-                lead = self.env["crm.lead"].browse(vals["lead_id"])
-                lat, lon = self._get_default_coordinates_from_lead(lead)
-                if lat is not False and lon is not False:
-                    vals.setdefault("latitude", lat)
-                    vals.setdefault("longitude", lon)
-        records = super().create(vals_list)
-        records._check_coordinates_required()
-        return records
+            self._autofill_coordinates_from_vals(vals)
+        return super().create(vals_list)
 
     def write(self, vals):
-        res = super().write(vals)
-        self._check_coordinates_required()
-        return res
+        if 'location_address' in vals:
+            self._autofill_coordinates_from_vals(vals)
+        return super().write(vals)
 
     @api.constrains("latitude", "longitude")
     def _check_coordinates_required(self):
         for line in self:
-            if line.latitude is False or line.longitude is False:
-                raise ValidationError(_("Latitude and Longitude are required for each route stop."))
+            if not line.latitude and not line.longitude:
+                # Allow 0,0 only if both are explicitly zero (unlikely for a real site)
+                # but allow empty (not set) without error — address-only stops are valid
+                continue
             if line.latitude < -90.0 or line.latitude > 90.0:
                 raise ValidationError(_("Latitude must be between -90 and 90."))
             if line.longitude < -180.0 or line.longitude > 180.0:
