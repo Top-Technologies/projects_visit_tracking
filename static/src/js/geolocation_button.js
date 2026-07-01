@@ -139,12 +139,11 @@ const visitCheckInService = {
 registry.category("services").add("visit_check_in", visitCheckInService);
 
     // // Helper to detect mobile devices via User Agent
-    // // Disabled for testing on desktop — allows check-in from any device
-    // function isMobileDevice() {
-    //     const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-    //     const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
-    //     return mobileRegex.test(userAgent);
-    // }
+     function isMobileDevice() {
+         const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+         const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+         return mobileRegex.test(userAgent);
+     }
 
 /**
  * Geolocation Button Widget for CRM Leads
@@ -165,13 +164,13 @@ export class LeadGeolocationButton extends Component {
         if (this.state.processing) {
             return;
         }
-        // // Disabled for testing on desktop — allows check-in from any device
-        // if (!isMobileDevice()) {
-        //     this.notification.add("Check-in is only allowed from mobile devices.", {
-        //         type: "danger",
-        //     });
-        //     return;
-        // }
+        
+         if (!isMobileDevice()) {
+             this.notification.add("Check-in is only allowed from mobile devices.", {
+                 type: "danger",
+             });
+             return;
+         }
 
         if (!navigator.geolocation) {
             this.notification.add("Geolocation is not supported by your browser.", {
@@ -249,13 +248,13 @@ export class VisitGeolocationButton extends Component {
         if (this.state.processing) {
             return;
         }
-        // // Disabled for testing on desktop — allows check-in from any device
-        // if (!isMobileDevice()) {
-        //     this.notification.add("Action is only allowed from mobile devices.", {
-        //         type: "danger",
-        //     });
-        //     return;
-        // }
+        
+        if (!isMobileDevice()) {
+            this.notification.add("Action is only allowed from mobile devices.", {
+                type: "danger",
+            });
+            return;
+        }
 
         if (!navigator.geolocation) {
             this.notification.add("Geolocation is not supported by your browser.", {
