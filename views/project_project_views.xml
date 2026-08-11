@@ -20,15 +20,6 @@
                 </button>
             </xpath>
 
-            <!-- Check-in / Check-out geolocation button in the form footer area -->
-            <xpath expr="//sheet" position="after">
-                <div class="o_project_field_tracking_control"
-                     groups="project.group_project_user">
-                    <field name="has_active_visit" invisible="1"/>
-                    <widget name="project_geolocation_button"/>
-                </div>
-            </xpath>
-
         </field>
     </record>
 </odoo>
