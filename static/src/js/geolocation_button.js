@@ -22,16 +22,11 @@ const visitCheckInService = {
         }
 
         function buildActiveVisitMessage(info) {
-            const leadName = info?.lead_name || "";
-            const partnerName = info?.partner_name || "";
-            let place = leadName || partnerName || "another lead";
-            if (leadName && partnerName && partnerName !== leadName) {
-                place = `${leadName} (${partnerName})`;
-            }
+            const projectName = info?.project_name || info?.lead_name || info?.partner_name || "another project";
             const since = info?.visit_date ? String(info.visit_date) : "";
             return since
-                ? `You already have an active check-in at ${place} since ${since}.`
-                : `You already have an active check-in at ${place}.`;
+                ? `You already have an active check-in at ${projectName} since ${since}.`
+                : `You already have an active check-in at ${projectName}.`;
         }
 
         function openVisitForm(visitId) {
@@ -96,7 +91,6 @@ const visitCheckInService = {
                                     if (modelName === "crm.lead" && method === "action_check_in" && Number.isInteger(result)) {
                                         openVisitForm(result);
                                     } else if (modelName === "visit.tracker") {
-                                        // Reload view or close window if needed, or just let form reload
                                         action.switchView("form", { resId: recordId });
                                     } else {
                                         action.switchView("form", { resId: recordId });
@@ -138,17 +132,17 @@ const visitCheckInService = {
 };
 registry.category("services").add("visit_check_in", visitCheckInService);
 
-    // // Helper to detect mobile devices via User Agent
-     function isMobileDevice() {
-         const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-         const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
-         return mobileRegex.test(userAgent);
-     }
+// Helper to detect mobile devices via User Agent
+function isMobileDevice() {
+    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+    const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+    return mobileRegex.test(userAgent);
+}
 
 /**
- * Geolocation Button Widget for CRM Leads
+ * Geolocation Button Widget for Project Forms
  */
-export class LeadGeolocationButton extends Component {
+export class ProjectGeolocationButton extends Component {
     static template = "projects_visit_tracking.ProjectGeolocationButton";
     static props = {
         ...standardWidgetProps,
@@ -165,12 +159,12 @@ export class LeadGeolocationButton extends Component {
             return;
         }
         
-         if (!isMobileDevice()) {
-             this.notification.add("Check-in is only allowed from mobile devices.", {
-                 type: "danger",
-             });
-             return;
-         }
+        if (!isMobileDevice()) {
+            this.notification.add("Check-in is only allowed from mobile devices.", {
+                type: "danger",
+            });
+            return;
+        }
 
         if (!navigator.geolocation) {
             this.notification.add("Geolocation is not supported by your browser.", {
@@ -181,19 +175,19 @@ export class LeadGeolocationButton extends Component {
 
         this.notification.add("Getting your location...", { type: "info" });
 
-        let leadId;
+        let projectId;
         try {
             this.state.processing = true;
             const saved = await this.props.record.save();
             if (!saved) {
-                this.notification.add("Failed to save the lead. Please check required fields.", {
+                this.notification.add("Failed to save the project. Please check required fields.", {
                     type: "danger",
                 });
                 return;
             }
-            leadId = this.props.record.resId;
+            projectId = this.props.record.resId;
         } catch (error) {
-            this.notification.add("Error saving lead: " + error.message, { type: "danger" });
+            this.notification.add("Error saving project: " + error.message, { type: "danger" });
             return;
         } finally {
             this.state.processing = false;
@@ -202,18 +196,24 @@ export class LeadGeolocationButton extends Component {
         const actionType = this.props.record.data.has_active_visit ? "check_out" : "check_in";
         this.state.processing = true;
         try {
-            await this.visitCheckIn.startCheckIn(leadId, "crm.lead", actionType);
+            await this.visitCheckIn.startCheckIn(projectId, "project.project", actionType);
+            if (this.props.record.load) {
+                await this.props.record.load();
+            }
         } finally {
             this.state.processing = false;
         }
     }
 }
 
-// Register the widget for CRM lead forms
-registry.category("view_widgets").add("lead_geolocation_button", {
-    component: LeadGeolocationButton,
+// Register the widget for project form view
+registry.category("view_widgets").add("project_geolocation_button", {
+    component: ProjectGeolocationButton,
 });
-
+// Register alias lead_geolocation_button for backward compatibility
+registry.category("view_widgets").add("lead_geolocation_button", {
+    component: ProjectGeolocationButton,
+});
 
 /**
  * Visit Tracker Geolocation Button (for visit.tracker form view)
@@ -287,6 +287,9 @@ export class VisitGeolocationButton extends Component {
         this.state.processing = true;
         try {
             await this.visitCheckIn.startCheckIn(resId, "visit.tracker", actionType);
+            if (this.props.record.load) {
+                await this.props.record.load();
+            }
         } finally {
             this.state.processing = false;
         }
