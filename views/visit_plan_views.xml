@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Search View -->
+    <record id="view_visit_plan_search" model="ir.ui.view">
+        <field name="name">visit.plan.search</field>
+        <field name="model">visit.plan</field>
+        <field name="arch" type="xml">
+            <search string="Search Visit Plans">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="user_id"/>
+                <field name="location_address"/>
+                <filter string="My Plans" name="my_plans" domain="[('user_id', '=', uid)]"/>
+                <separator/>
+                <filter string="To Approve" name="to_approve" domain="[('state', '=', 'wait_approval')]"/>
+                <filter string="Approved" name="approved" domain="[('state', '=', 'approved')]"/>
+                <filter string="Draft" name="draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="Rejected" name="rejected" domain="[('state', '=', 'rejected')]"/>
+                <separator/>
+                <filter string="Today" name="today" domain="[('start_date', '&lt;=', context_today().strftime('%Y-%m-%d')), ('end_date', '&gt;=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter string="This Week" name="this_week" domain="[('start_date', '&gt;=', (context_today() - relativedelta(days=context_today().weekday())).strftime('%Y-%m-%d'))]"/>
+                <filter string="This Month" name="this_month" domain="[('start_date', '&gt;=', context_today().strftime('%Y-%m-01'))]"/>
+                <separator/>
+                <group>
+                    <filter string="Project" name="group_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="Employee / Team Member" name="group_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="Status" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="Start Date" name="group_start_date" context="{'group_by': 'start_date:day'}"/>
+                    <filter string="Month" name="group_month" context="{'group_by': 'start_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Kanban View (Optimized for Mobile) -->
+    <record id="view_visit_plan_kanban" model="ir.ui.view">
+        <field name="name">visit.plan.kanban</field>
+        <field name="model">visit.plan</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile" default_order="start_date desc">
+                <field name="id"/>
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="user_id"/>
+                <field name="start_date"/>
+                <field name="end_date"/>
+                <field name="planned_hours"/>
+                <field name="actual_hours"/>
+                <field name="state"/>
+                <field name="completion_rate"/>
+                <field name="has_active_check_in"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div t-attf-class="oe_kanban_global_click p-3 border rounded shadow-sm #{record.has_active_check_in.raw_value ? 'border-success bg-light' : ''}">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <strong class="fs-6 text-primary"><field name="name"/></strong>
+                                <field name="state" widget="badge"
+                                       decoration-success="state == 'approved'"
+                                       decoration-info="state == 'wait_approval'"
+                                       decoration-muted="state == 'draft'"
+                                       decoration-danger="state == 'rejected'"/>
+                            </div>
+
+                            <div class="mb-2">
+                                <div class="text-dark fw-bold">
+                                    <i class="fa fa-building-o text-muted me-1"/> <field name="project_id"/>
+                                </div>
+                                <div class="text-muted small">
+                                    <i class="fa fa-user-o me-1"/> <field name="user_id"/>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center small text-muted mb-2">
+                                <span>
+                                    <i class="fa fa-calendar me-1"/> <field name="start_date"/> to <field name="end_date"/>
+                                </span>
+                            </div>
+
+                            <div class="bg-white p-2 rounded border mb-2">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span><strong>Planned:</strong> <field name="planned_hours" widget="float_time"/></span>
+                                    <span><strong>Actual:</strong> <field name="actual_hours" widget="float_time"/></span>
+                                </div>
+                                <field name="completion_rate" widget="progressbar"/>
+                            </div>
+
+                            <t t-if="record.has_active_check_in.raw_value">
+                                <div class="badge bg-success w-100 py-2 text-uppercase">
+                                    <i class="fa fa-map-marker me-1"/> Currently Checked In
+                                </div>
+                            </t>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- List View -->
+    <record id="view_visit_plan_tree" model="ir.ui.view">
+        <field name="name">visit.plan.tree</field>
+        <field name="model">visit.plan</field>
+        <field name="arch" type="xml">
+            <list string="Visit Planning" default_order="start_date desc"
+                  decoration-muted="state == 'draft'"
+                  decoration-bf="state == 'approved'"
+                  decoration-info="state == 'wait_approval'"
+                  decoration-danger="state == 'rejected'">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="user_id"/>
+                <field name="start_date"/>
+                <field name="end_date"/>
+                <field name="planning_type"/>
+                <field name="planned_hours" widget="float_time" sum="Total Planned Hours"/>
+                <field name="actual_hours" widget="float_time" sum="Total Actual Hours"/>
+                <field name="variance_hours" widget="float_time" optional="show"
+                       decoration-success="variance_hours &gt;= 0"
+                       decoration-warning="variance_hours &lt; 0"/>
+                <field name="completion_rate" widget="progressbar" optional="show"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'approved'"
+                       decoration-info="state == 'wait_approval'"
+                       decoration-muted="state == 'draft'"
+                       decoration-danger="state == 'rejected'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_visit_plan_form" model="ir.ui.view">
+        <field name="name">visit.plan.form</field>
+        <field name="model">visit.plan</field>
+        <field name="arch" type="xml">
+            <form string="Project Visit Plan">
+                <header>
+                    <button name="action_request_approval" string="Request Approval" type="object"
+                            class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_approve" string="Approve" type="object"
+                            class="btn-success" groups="project.group_project_manager"
+                            invisible="state != 'wait_approval'"/>
+                    <button name="action_reject" string="Reject" type="object"
+                            class="btn-danger" groups="project.group_project_manager"
+                            invisible="state != 'wait_approval'"/>
+                    <button name="action_reset_draft" string="Reset to Draft" type="object"
+                            invisible="state == 'draft'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,wait_approval,approved"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_check_ins" type="object"
+                                class="oe_stat_button" icon="fa-map-marker"
+                                invisible="check_in_count == 0">
+                            <div class="o_stat_info">
+                                <field name="check_in_count" class="o_stat_value"/>
+                                <span class="o_stat_text">Check-ins</span>
+                            </div>
+                        </button>
+                        <button class="oe_stat_button" icon="fa-clock-o" type="object" name="action_view_check_ins">
+                            <div class="o_stat_info">
+                                <field name="actual_hours" widget="float_time" class="o_stat_value"/>
+                                <span class="o_stat_text">Hours Spent</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div class="oe_title">
+                        <label for="name" string="Plan Reference"/>
+                        <h1>
+                            <field name="name" placeholder="e.g. Site Visit - Project X" readonly="state not in ('draft', 'rejected')"/>
+                        </h1>
+                    </div>
+
+                    <!-- Mobile-Friendly Quick Check-In Widget (Visible when Approved) -->
+                    <div class="o_plan_mobile_checkin_container my-3 p-3 bg-light border rounded" invisible="state != 'approved'">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <h5 class="mb-0 text-dark">
+                                    <i class="fa fa-mobile text-primary me-2"/>Mobile Site Check-in
+                                </h5>
+                                <small class="text-muted">Use when arriving at or departing from the project site</small>
+                            </div>
+                            <div class="o_plan_geolocation_control">
+                                <widget name="plan_geolocation_button"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <group>
+                        <group string="Visit Details">
+                            <field name="project_id" readonly="state not in ('draft', 'rejected')"/>
+                            <field name="user_id" groups="project.group_project_manager" readonly="state not in ('draft', 'rejected')"/>
+                            <field name="user_id" groups="!project.group_project_manager" readonly="1"/>
+                            <field name="planning_type" widget="radio" options="{'horizontal': true}" readonly="state not in ('draft', 'rejected')"/>
+                            <field name="custom_hours" widget="float_time" invisible="planning_type != 'custom_hours'" readonly="state not in ('draft', 'rejected')"/>
+                            <field name="planned_hours" widget="float_time" readonly="state not in ('draft', 'rejected') and planning_type == 'full_day'"/>
+                        </group>
+                        <group string="Schedule &amp; Tracking">
+                            <field name="start_date" readonly="state not in ('draft', 'rejected')"/>
+                            <field name="end_date" readonly="state not in ('draft', 'rejected')"/>
+                            <field name="actual_hours" widget="float_time" readonly="1"/>
+                            <field name="variance_hours" widget="float_time" readonly="1"
+                                   decoration-success="variance_hours &gt;= 0"
+                                   decoration-warning="variance_hours &lt; 0"/>
+                            <field name="completion_rate" widget="progressbar"/>
+                            <field name="has_active_check_in" invisible="1"/>
+                        </group>
+                    </group>
+
+                    <group string="Location Information">
+                        <field name="location_address" placeholder="Type site address or paste Google Maps link..."/>
+                        <group>
+                            <field name="latitude"/>
+                        </group>
+                        <group>
+                            <field name="longitude"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Check-in History" name="checkins">
+                            <field name="visit_tracker_ids" readonly="1">
+                                <list decoration-success="state == 'checked_out'"
+                                      decoration-bf="state == 'done'"
+                                      decoration-muted="state == 'cancelled'">
+                                    <field name="visit_date" string="Check-in Time"/>
+                                    <field name="check_out_date" string="Check-out Time"/>
+                                    <field name="duration_hours" widget="float_time" string="Hours Spent"/>
+                                    <field name="duration_minutes" optional="hide"/>
+                                    <field name="location_address" string="Check-in Location"/>
+                                    <field name="state" widget="badge"
+                                           decoration-success="state == 'checked_out'"
+                                           decoration-bf="state == 'done'"
+                                           decoration-warning="state == 'cancellation_requested'"
+                                           decoration-muted="state == 'cancelled'"/>
+                                    <field name="maps_url" widget="url" text="Check-in Map" optional="show"/>
+                                    <field name="check_out_maps_url" widget="url" text="Check-out Map" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Sub-Sites / Stops" name="sub_sites">
+                            <field name="line_ids" readonly="state not in ('draft', 'rejected')">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="project_id"/>
+                                    <field name="location_address"/>
+                                    <field name="planned_hours" widget="float_time" sum="Total Planned"/>
+                                    <field name="latitude" optional="hide"/>
+                                    <field name="longitude" optional="hide"/>
+                                    <field name="notes" optional="show"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Objectives &amp; Notes" name="notes">
+                            <field name="notes" placeholder="Describe the objectives and tasks to accomplish during this site visit..."/>
+                        </page>
+                        <page string="Approval Details" name="approval" invisible="state in ('draft', 'wait_approval')">
+                            <group>
+                                <group>
+                                    <field name="approved_by_id" readonly="1"/>
+                                    <field name="approval_date" readonly="1"/>
+                                </group>
+                                <group invisible="state != 'rejected'">
+                                    <field name="rejection_reason" readonly="1"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action for Visit Plans -->
+    <record id="action_visit_plan" model="ir.actions.act_window">
+        <field name="name">Visit Planning</field>
+        <field name="res_model">visit.plan</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_visit_plan_search"/>
+        <field name="context">{'search_default_my_plans': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Plan your next project site visit!
+            </p>
+            <p>
+                Create a visit plan for your off-site project work, specify dates and planned hours (e.g. 8h/day or custom hours), and submit it for manager approval.
+            </p>
+        </field>
+    </record>
+</odoo>

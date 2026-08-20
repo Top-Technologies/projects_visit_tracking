@@ -1,27 +1,29 @@
 {
-    'name': 'Projects Visit Tracking',
+    'name': 'Projects Visit Tracking & Planning',
     'version': '19.0.1.0.0',
     'category': 'Project',
-    'summary': 'Track projects visits with geolocation',
+    'summary': 'Plan project site visits, mobile check-in/out with geolocation, and track planned vs actual hours',
     'description': """
-        This module allows tracking of projects visits.
+        This module allows project-oriented visit planning and mobile check-in tracking.
         Features:
-        - Check-in button on Project form with geolocation capture
-        - Interactive map dashboard with route visualization
-        - Pivot and graph views for visit analysis
-        - Filter by team member, date, and project
+        - Project Site Visit Planning (Full-day 8h/day or Custom Hours)
+        - Approval workflow for visit plans
+        - Mobile-friendly GPS Check-in & Check-out directly from approved plans
+        - Automatic duration calculation & Planned vs Actual hours analysis
+        - Interactive map dashboard for live team activity
+        - Pivot and graph analysis comparing planned vs actual hours
     """,
     'author': 'Top-tech',
     'depends': ['base', 'web', 'project'],
     'data': [
         'security/ir.model.access.csv',
         'security/security.xml',
-        'security/visit_route_security.xml',
+        'security/visit_plan_security.xml',
+        'views/visit_plan_views.xml',
         'views/visit_tracker_views.xml',
         'views/project_project_views.xml',
         'report/visit_report_views.xml',
         'views/visit_dashboard_views.xml',
-        'views/visit_route_views.xml',
     ],
     'assets': {
         'web.assets_backend': [

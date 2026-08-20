@@ -2,11 +2,11 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_visit_tracker_user,visit.tracker.user,model_visit_tracker,project.group_project_user,1,1,1,0
 access_visit_tracker_manager,visit.tracker.manager,model_visit_tracker,project.group_project_manager,1,1,1,1
 
-access_visit_route_user,visit.route.user,model_visit_route,project.group_project_user,1,1,1,0
-access_visit_route_manager,visit.route.manager,model_visit_route,project.group_project_manager,1,1,1,1
+access_visit_plan_user,visit.plan.user,model_visit_plan,project.group_project_user,1,1,1,0
+access_visit_plan_manager,visit.plan.manager,model_visit_plan,project.group_project_manager,1,1,1,1
 
-access_visit_route_line_user,visit.route.line.user,model_visit_route_line,project.group_project_user,1,1,1,1
-access_visit_route_line_manager,visit.route.line.manager,model_visit_route_line,project.group_project_manager,1,1,1,1
+access_visit_plan_line_user,visit.plan.line.user,model_visit_plan_line,project.group_project_user,1,1,1,1
+access_visit_plan_line_manager,visit.plan.line.manager,model_visit_plan_line,project.group_project_manager,1,1,1,1
 
 access_visit_report_user,visit.report.user,model_visit_report,project.group_project_user,1,0,0,0
 access_visit_report_manager,visit.report.manager,model_visit_report,project.group_project_manager,1,0,0,0

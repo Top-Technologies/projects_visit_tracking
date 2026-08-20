@@ -5,7 +5,7 @@
             <!-- Header with filters -->
             <div class="visit-map-header bg-white border-bottom p-3 d-flex align-items-center gap-3 flex-wrap">
                 <h4 class="mb-0 me-auto">
-                    <i class="fa fa-map-marker text-primary me-2"/>Visit Map Dashboard
+                    <i class="fa fa-map-marker text-primary me-2"/>Project Visit Map
                 </h4>
                 
                 <div class="d-flex align-items-center gap-2" t-if="state.isManager">
@@ -38,10 +38,10 @@
                     <strong class="ms-1 text-primary" t-esc="state.visits.length"/>
                 </div>
                 <div class="stat-item" t-if="state.selectedUser">
-                    <span class="text-muted">Assigned route + visits shown for selected team member</span>
+                    <span class="text-muted">Assigned visit plan + check-ins shown for selected team member</span>
                 </div>
                 <div class="stat-item" t-else="">
-                    <span class="text-muted">Showing visits for all team members (route overlay requires selecting one)</span>
+                    <span class="text-muted">Showing visits for all team members</span>
                 </div>
             </div>
 
@@ -64,7 +64,6 @@
                             <th>Time</th>
                             <th>Team Member</th>
                             <th>Project</th>
-                            <!-- <th>Address</th> -->
                         </tr>
                     </thead>
                     <tbody>
@@ -74,12 +73,11 @@
                                 <td t-esc="new Date(visit.visit_date).toLocaleTimeString()"/>
                                 <td t-esc="visit.user_id and visit.user_id[1] or '-'"/>
                                 <td t-esc="visit.project_id and visit.project_id[1] or '-'"/>
-                                <!-- <td class="text-truncate" style="max-width: 300px;" t-esc="visit.location_address || '-'"/> -->
                             </tr>
                         </t>
                         <t t-if="state.visits.length === 0">
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-3">No visits found for selected filters</td>
+                                <td colspan="4" class="text-center text-muted py-3">No visits found for selected filters</td>
                             </tr>
                         </t>
                     </tbody>

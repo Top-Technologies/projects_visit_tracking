@@ -5,7 +5,7 @@
         <field name="name">visit.report.search</field>
         <field name="model">visit.report</field>
         <field name="arch" type="xml">
-            <search string="Search Visit Reports">
+            <search string="Search Visit Analysis">
                 <field name="user_id"/>
                 <field name="project_id"/>
                 <filter string="Today" name="today" 
@@ -18,10 +18,10 @@
                 <filter string="Over Target" name="over_target"
                         domain="[('visit_completion_rate', '&gt;=', 100)]"/>
                 <filter string="Under Target" name="under_target"
-                        domain="[('visit_completion_rate', '&lt;', 100), ('planned_visits', '&gt;', 0)]"/>
+                        domain="[('visit_completion_rate', '&lt;', 100), ('planned_hours', '&gt;', 0)]"/>
                 <separator/>
                 <group>
-                    <filter string="Team Member" name="group_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="Employee / Team Member" name="group_user" context="{'group_by': 'user_id'}"/>
                     <filter string="Project" name="group_project" context="{'group_by': 'project_id'}"/>
                     <filter string="Date" name="group_date" context="{'group_by': 'report_date:day'}"/>
                     <filter string="Week" name="group_week" context="{'group_by': 'report_date:week'}"/>
@@ -36,17 +36,17 @@
         <field name="name">visit.report.tree</field>
         <field name="model">visit.report</field>
         <field name="arch" type="xml">
-            <list string="Visit Analysis" create="0" edit="0" delete="0">
+            <list string="Visit Analysis - Planned vs Actual" create="0" edit="0" delete="0">
                 <field name="report_date"/>
                 <field name="user_id"/>
-                <field name="project_id" optional="show"/>
-                <field name="planned_visits" sum="Total Planned"/>
-                <field name="actual_visits" sum="Total Actual"/>
-                <field name="visit_variance" decoration-success="visit_variance &gt;= 0" decoration-danger="visit_variance &lt; 0"/>
+                <field name="project_id"/>
+                <field name="planned_hours" sum="Total Planned Hours"/>
+                <field name="actual_hours" sum="Total Actual Hours"/>
+                <field name="duration_variance" sum="Total Variance" decoration-success="duration_variance &gt;= 0" decoration-warning="duration_variance &lt; 0"/>
+                <field name="planned_visits" sum="Total Planned Visits" optional="hide"/>
+                <field name="actual_visits" sum="Total Actual Visits" optional="hide"/>
+                <field name="visit_variance" decoration-success="visit_variance &gt;= 0" decoration-danger="visit_variance &lt; 0" optional="hide"/>
                 <field name="visit_completion_rate" widget="progressbar"/>
-                <field name="planned_duration" sum="Total Planned Duration" optional="hide"/>
-                <field name="actual_duration" sum="Total Actual Duration" optional="hide"/>
-                <field name="duration_variance" decoration-success="duration_variance &lt;= 0" decoration-warning="duration_variance &gt; 0" optional="hide"/>
             </list>
         </field>
     </record>
@@ -59,10 +59,11 @@
             <pivot string="Visit Analysis" sample="1">
                 <field name="user_id" type="row"/>
                 <field name="report_date" type="col" interval="week"/>
+                <field name="planned_hours" type="measure"/>
+                <field name="actual_hours" type="measure"/>
+                <field name="duration_variance" type="measure"/>
                 <field name="planned_visits" type="measure"/>
                 <field name="actual_visits" type="measure"/>
-                <field name="planned_duration" type="measure"/>
-                <field name="actual_duration" type="measure"/>
             </pivot>
         </field>
     </record>
@@ -72,17 +73,17 @@
         <field name="name">visit.report.graph</field>
         <field name="model">visit.report</field>
         <field name="arch" type="xml">
-            <graph string="Visit Analysis" type="bar" sample="1">
+            <graph string="Visit Analysis - Planned vs Actual" type="bar" sample="1">
                 <field name="user_id"/>
-                <field name="actual_visits" type="measure"/>
-                <field name="planned_visits" type="measure"/>
+                <field name="planned_hours" type="measure"/>
+                <field name="actual_hours" type="measure"/>
             </graph>
         </field>
     </record>
 
     <!-- Action -->
     <record id="action_visit_report" model="ir.actions.act_window">
-        <field name="name">Planned vs Actual</field>
+        <field name="name">Planned vs Actual Analysis</field>
         <field name="res_model">visit.report</field>
         <field name="view_mode">pivot,graph,list</field>
         <field name="search_view_id" ref="view_visit_report_search"/>
@@ -92,7 +93,7 @@
                 No visit data to analyze yet.
             </p>
             <p>
-                This report compares planned route visits with actual check-ins to help analyze field team performance.
+                This report compares planned project site visit hours with actual check-in time spent.
             </p>
         </field>
     </record>

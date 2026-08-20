@@ -1,9 +1,10 @@
-from odoo import _, models, fields, api
-from odoo.exceptions import UserError, ValidationError
-import requests
 import logging
 import math
+import requests
 from psycopg2 import IntegrityError
+
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError, ValidationError
 
 _logger = logging.getLogger(__name__)
 
@@ -14,30 +15,41 @@ class VisitTracker(models.Model):
     _order = 'visit_date desc'
 
     user_id = fields.Many2one(
-        'res.users', string='Team Member',
+        'res.users', string='Employee / Team Member',
         default=lambda self: self.env.user, required=True, readonly=True
     )
     project_id = fields.Many2one(
         'project.project', string='Project',
+        required=True,
         help='The project this field visit is related to'
+    )
+    plan_id = fields.Many2one(
+        'visit.plan', string='Visit Plan',
+        help='Link to the approved visit plan if this visit was planned'
+    )
+    plan_line_id = fields.Many2one(
+        'visit.plan.line', string='Plan Stop / Sub-Site',
+        help='Link to the specific planned site stop if part of a multi-stop plan'
     )
     visit_date = fields.Datetime(
         string='Check-in Date', default=fields.Datetime.now,
         required=True, readonly=True
     )
     check_out_date = fields.Datetime(string='Check-out Date', readonly=True)
-    route_line_id = fields.Many2one(
-        'visit.route.line', string='Planned Route Stop',
-        help='Link to the planned route stop if this visit was part of a route'
+
+    planned_hours = fields.Float(
+        string='Planned Hours',
+        compute='_compute_planned_metrics',
+        store=True, readonly=True
     )
     planned_duration_minutes = fields.Float(
         string='Planned Duration (min)',
-        related='route_line_id.estimated_duration_minutes',
+        compute='_compute_planned_metrics',
         store=True, readonly=True
     )
     is_planned = fields.Boolean(
         string='Was Planned', compute='_compute_is_planned', store=True,
-        help='True if this visit was linked to a planned route stop'
+        help='True if this visit was linked to an approved visit plan'
     )
     force_zero_duration = fields.Boolean(
         string='Force Zero Duration', default=False,
@@ -74,21 +86,6 @@ class VisitTracker(models.Model):
         ('cancelled', 'Cancelled'),
     ], string='Status', default='draft', readonly=True)
 
-    def init(self):
-        # Enforce at DB level: a user can have only one active check-in at a time.
-        # This closes race conditions (double click / multi-tab / multiple workers).
-        try:
-            self._cr.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS visit_tracker_one_active_per_user
-                ON visit_tracker (user_id)
-                WHERE state = 'done'
-            """)
-        except Exception:
-            _logger.exception(
-                "Could not create unique index visit_tracker_one_active_per_user. "
-                "There may be duplicate active check-ins (state='done') per user."
-            )
-
     pre_cancellation_state = fields.Selection([
         ('draft', 'Draft'),
         ('done', 'Checked In'),
@@ -111,6 +108,38 @@ class VisitTracker(models.Model):
         help='Reason given by the manager when rejecting the cancellation request'
     )
 
+    def init(self):
+        # Enforce at DB level: a user can have only one active check-in at a time.
+        try:
+            self._cr.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS visit_tracker_one_active_per_user
+                ON visit_tracker (user_id)
+                WHERE state = 'done'
+            """)
+        except Exception:
+            _logger.exception(
+                "Could not create unique index visit_tracker_one_active_per_user. "
+                "There may be duplicate active check-ins (state='done') per user."
+            )
+
+    @api.depends('plan_id', 'plan_line_id', 'plan_id.planned_hours', 'plan_line_id.planned_hours')
+    def _compute_planned_metrics(self):
+        for record in self:
+            if record.plan_line_id:
+                record.planned_hours = record.plan_line_id.planned_hours
+                record.planned_duration_minutes = record.plan_line_id.planned_hours * 60.0
+            elif record.plan_id:
+                record.planned_hours = record.plan_id.planned_hours
+                record.planned_duration_minutes = (record.plan_id.planned_hours or 0.0) * 60.0
+            else:
+                record.planned_hours = 0.0
+                record.planned_duration_minutes = 0.0
+
+    @api.depends('plan_id', 'plan_line_id')
+    def _compute_is_planned(self):
+        for record in self:
+            record.is_planned = bool(record.plan_id or record.plan_line_id)
+
     @api.depends('visit_date', 'check_out_date', 'force_zero_duration')
     def _compute_duration(self):
         for record in self:
@@ -127,15 +156,10 @@ class VisitTracker(models.Model):
                 if start_dt and end_dt:
                     seconds = (end_dt - start_dt).total_seconds()
                     if seconds > 0:
-                        duration_minutes = seconds / 60.0
-                        duration_hours = seconds / 3600.0
+                        duration_minutes = round(seconds / 60.0, 2)
+                        duration_hours = round(seconds / 3600.0, 2)
             record.duration_minutes = duration_minutes
             record.duration_hours = duration_hours
-
-    @api.depends('route_line_id')
-    def _compute_is_planned(self):
-        for record in self:
-            record.is_planned = bool(record.route_line_id)
 
     @api.constrains('user_id', 'state')
     def _check_single_active_check_in(self):
@@ -197,19 +221,35 @@ class VisitTracker(models.Model):
                     % {'project': project_name, 'time': visit_date}
                 )
 
+            # Auto-link approved plan for this user & project if not already linked
+            vals = {
+                'latitude': lat,
+                'longitude': long,
+                'device_info': device_info,
+                'visit_date': fields.Datetime.now(),
+                'check_out_date': False,
+                'state': 'done'
+            }
+
+            if not record.plan_id and record.project_id:
+                today = fields.Date.context_today(self)
+                approved_plan = self.env['visit.plan'].search([
+                    ('user_id', '=', record.user_id.id),
+                    ('project_id', '=', record.project_id.id),
+                    ('start_date', '<=', today),
+                    ('end_date', '>=', today),
+                    ('state', '=', 'approved'),
+                ], limit=1)
+                if approved_plan:
+                    vals['plan_id'] = approved_plan.id
+
             if not address and lat and long:
                 address = self._get_address_from_coordinates(lat, long)
+            if address:
+                vals['location_address'] = address
 
             try:
-                record.write({
-                    'latitude': lat,
-                    'longitude': long,
-                    'device_info': device_info,
-                    'location_address': address,
-                    'visit_date': fields.Datetime.now(),
-                    'check_out_date': False,
-                    'state': 'done'
-                })
+                record.write(vals)
             except IntegrityError:
                 self.env.cr.rollback()
                 raise UserError(_('You already have an active check-in. Please check out before checking in to another project.'))
@@ -228,6 +268,8 @@ class VisitTracker(models.Model):
             'active': True,
             'id': active_visit.id,
             'project_name': active_visit.project_id.display_name if active_visit.project_id else False,
+            'plan_id': active_visit.plan_id.id if active_visit.plan_id else False,
+            'plan_name': active_visit.plan_id.name if active_visit.plan_id else False,
             'visit_date': active_visit.visit_date,
         }
 
@@ -297,7 +339,7 @@ class VisitTracker(models.Model):
         return False
 
     def action_request_cancellation(self):
-        """Team member requests cancellation of their check-in. Only the record owner can request."""
+        """Team member requests cancellation of their check-in."""
         for record in self:
             if record.state not in ('done', 'checked_out'):
                 continue
@@ -326,7 +368,7 @@ class VisitTracker(models.Model):
             })
 
     def action_reject_cancellation(self):
-        """Project manager rejects the cancellation request. Visit returns to previous state."""
+        """Project manager rejects the cancellation request."""
         if not self.env.user.has_group('project.group_project_manager'):
             raise UserError(_('Only project managers can reject cancellation requests.'))
         for record in self:

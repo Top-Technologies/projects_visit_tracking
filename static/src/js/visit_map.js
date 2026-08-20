@@ -2,7 +2,7 @@
 
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { Component, xml, onMounted, onWillUnmount, useState } from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 
 export class VisitMapDashboard extends Component {
@@ -68,8 +68,7 @@ export class VisitMapDashboard extends Component {
         // Initialize map centered on a default location
         this.map = L.map('visit-map').setView([0, 0], 2);
 
-        // Ensure deterministic stacking when markers overlap:
-        // planned route (stops/lines) below, visits above.
+        // Ensure deterministic stacking when markers overlap
         this.map.createPane('plannedPane');
         this.map.getPane('plannedPane').style.zIndex = 350;
         this.map.createPane('visitPane');
@@ -83,7 +82,7 @@ export class VisitMapDashboard extends Component {
         if (this.state.isManager) {
             await this.loadUsers();
         } else {
-            const me = await this.orm.call("visit.route", "get_current_user", []);
+            const me = await this.orm.call("visit.plan", "get_current_user", []);
             if (me?.id) {
                 this.state.selectedUser = String(me.id);
             }
@@ -93,27 +92,27 @@ export class VisitMapDashboard extends Component {
 
     async loadAll() {
         await this.loadVisits();
-        await this.loadPlannedRouteOverlay();
+        await this.loadPlannedPlanOverlay();
         const selectedUserId = this.state.selectedUser ? parseInt(this.state.selectedUser) : false;
         await this.loadActualRouteTaken(selectedUserId);
     }
 
-    async loadPlannedRouteOverlay() {
+    async loadPlannedPlanOverlay() {
         if (!this.state.selectedUser) return;
         try {
             const data = await this.orm.call(
-                "visit.route",
-                "get_route_map_data",
+                "visit.plan",
+                "get_plan_map_data",
                 [],
                 {
                     user_id: parseInt(this.state.selectedUser),
-                    route_date: this.state.selectedDate,
+                    plan_date: this.state.selectedDate,
                 }
             );
             const stops = data?.stops || [];
-            this.renderRouteStops(stops, { fitBounds: false });
+            this.renderPlanStops(stops, { fitBounds: false });
         } catch (e) {
-            // no planned route found or access denied - ignore silently
+            // no planned visit found or access denied - ignore silently
         }
     }
 
@@ -174,7 +173,7 @@ export class VisitMapDashboard extends Component {
 
     async loadUserRole() {
         try {
-            this.state.isManager = await this.orm.call("visit.route", "is_project_manager", []);
+            this.state.isManager = await this.orm.call("visit.plan", "is_project_manager", []);
         } catch (e) {
             this.state.isManager = false;
         }
@@ -213,7 +212,6 @@ export class VisitMapDashboard extends Component {
                 domain.push(["visit_date", "<=", endDate]);
             }
 
-            // Fetch visits
             const options = { order: "visit_date desc" };
             if (!this.state.selectedUser) {
                 options.limit = 2000;
@@ -238,7 +236,6 @@ export class VisitMapDashboard extends Component {
                 visits = Array.from(latestByUser.values());
             }
 
-            // If user selected, we usually want chronological order for the route
             if (this.state.selectedUser) {
                 visits.sort((a, b) => new Date(a.visit_date) - new Date(b.visit_date));
             }
@@ -269,7 +266,7 @@ export class VisitMapDashboard extends Component {
         }
     }
 
-    renderRouteStops(stops, opts = {}) {
+    renderPlanStops(stops, opts = {}) {
         if (!this.map || !window.L) return;
         const { fitBounds = true } = opts;
         const bounds = [];
@@ -284,17 +281,8 @@ export class VisitMapDashboard extends Component {
             bounds.push(latlng);
             routeCoords.push(latlng);
 
-            const pinType = stop.pin_type || 'missing';
-            const className = pinType === 'known'
-                ? 'visit-marker known'
-                : pinType === 'manual_exact'
-                    ? 'visit-marker manual_exact'
-                    : pinType === 'manual_approx'
-                        ? 'visit-marker manual_approx'
-                        : 'visit-marker missing';
-
             const icon = L.divIcon({
-                className,
+                className: 'visit-marker known',
                 html: `<div class="marker-dot">${stop.sequence || ''}</div>`,
                 iconSize: [34, 34],
                 iconAnchor: [14, 14],
@@ -305,9 +293,8 @@ export class VisitMapDashboard extends Component {
 
             const popupContent = `
                 <div style="min-width: 220px;">
-                    <strong>${stop.project_name || 'Unknown Project'}</strong><br/>
+                    <strong>${stop.project_name || 'Project Site'}</strong><br/>
                     ${stop.address ? `<small> ${String(stop.address).substring(0, 100)}...</small><br/>` : ''}
-                    <small>Pin type: ${pinType}</small>
                 </div>
             `;
             marker.bindPopup(popupContent);
@@ -336,9 +323,6 @@ export class VisitMapDashboard extends Component {
         if (validVisits.length === 0) return;
 
         const bounds = [];
-        const routeCoords = [];
-
-        // Group by user for different colors
         const userColors = {};
         const colors = ['#e74c3c', '#3498db', '#2ecc71', '#9b59b6', '#f39c12', '#1abc9c'];
         let colorIndex = 0;
@@ -353,9 +337,7 @@ export class VisitMapDashboard extends Component {
 
             const latlng = [visit.latitude, visit.longitude];
             bounds.push(latlng);
-            routeCoords.push(latlng);
 
-            // Create custom icon with number
             const icon = L.divIcon({
                 className: 'visit-marker',
                 html: `<div style="background-color: ${color}; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">${idx + 1}</div>`,
@@ -365,11 +347,10 @@ export class VisitMapDashboard extends Component {
 
             const marker = L.marker(latlng, { icon }).addTo(this.map);
 
-            // Create popup content
             const visitDate = new Date(visit.visit_date).toLocaleTimeString();
             const popupContent = `
                 <div style="min-width: 200px;">
-                    <strong>${visit.project_id ? visit.project_id[1] : 'Unknown Project'}</strong><br/>
+                    <strong>${visit.project_id ? visit.project_id[1] : 'Project Site'}</strong><br/>
                     <small>Team Member: ${visit.user_id[1]}</small><br/>
                     <small>Time: ${visitDate}</small><br/>
                     ${visit.location_address ? `<small> ${visit.location_address.substring(0, 100)}...</small><br/>` : ''}
@@ -381,18 +362,6 @@ export class VisitMapDashboard extends Component {
             this.visitMarkers.push(marker);
         });
 
-        // Draw route line if showing single user
-        // if (this.state.selectedUser && routeCoords.length > 1) {
-        //     this.actualRouteLine = L.polyline(routeCoords, {
-        //         pane: 'visitPane',
-        //         color: userColors[parseInt(this.state.selectedUser)] || '#3498db',
-        //         weight: 3,
-        //         opacity: 0.7,
-        //         dashArray: '10, 10'
-        //     }).addTo(this.map);
-        // }
-
-        // Fit map to bounds
         if (bounds.length > 0) {
             this.map.fitBounds(bounds, { padding: [50, 50] });
         }

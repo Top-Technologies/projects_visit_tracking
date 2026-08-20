@@ -1,30 +1,62 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
-    <!-- Template for CRM Lead Check-in Button -->
+    <!-- Template for Visit Plan Check-in Button (Mobile-Friendly) -->
+    <t t-name="projects_visit_tracking.PlanGeolocationButton" owl="1">
+        <div class="o_plan_geolocation_btn_wrapper">
+            <t t-if="props.record.data.has_active_check_in">
+                <button type="button" 
+                        class="btn btn-danger btn-lg px-4 py-2 fw-bold shadow-sm d-inline-flex align-items-center"
+                        t-on-click="onClickCheckIn" 
+                        t-att-disabled="state.processing">
+                    <i t-if="state.processing" class="fa fa-spinner fa-spin me-2"/>
+                    <i t-else="" class="fa fa-sign-out me-2"/>
+                    <span t-if="state.processing">Processing GPS...</span>
+                    <span t-else="">Check Out from Site</span>
+                </button>
+            </t>
+            <t t-else="">
+                <button type="button" 
+                        class="btn btn-success btn-lg px-4 py-2 fw-bold shadow-sm d-inline-flex align-items-center"
+                        t-on-click="onClickCheckIn" 
+                        t-att-disabled="state.processing">
+                    <i t-if="state.processing" class="fa fa-spinner fa-spin me-2"/>
+                    <i t-else="" class="fa fa-map-marker me-2"/>
+                    <span t-if="state.processing">Getting Location...</span>
+                    <span t-else="">Check In at Site</span>
+                </button>
+            </t>
+        </div>
+    </t>
+
+    <!-- Template for Project Form Check-in Button -->
     <t t-name="projects_visit_tracking.ProjectGeolocationButton" owl="1">
         <t t-if="props.record.data.has_active_visit">
-            <button type="button" class="btn btn-secondary" t-on-click="onClickCheckIn" t-att-disabled="state.processing">
-                <i class="fa fa-map-marker me-1"/>Check Out
+            <button type="button" class="btn btn-danger" t-on-click="onClickCheckIn" t-att-disabled="state.processing">
+                <i t-if="state.processing" class="fa fa-spinner fa-spin me-1"/>
+                <i t-else="" class="fa fa-sign-out me-1"/>Check Out
             </button>
         </t>
         <t t-else="">
             <button type="button" class="btn btn-primary" t-on-click="onClickCheckIn" t-att-disabled="state.processing">
-                <i class="fa fa-map-marker me-1"/>Check In
+                <i t-if="state.processing" class="fa fa-spinner fa-spin me-1"/>
+                <i t-else="" class="fa fa-map-marker me-1"/>Check In
             </button>
         </t>
     </t>
 
-    <!-- Template for Visit Tracker Check-in Button (backward compatibility) -->
+    <!-- Template for Visit Tracker Form Check-in Button -->
     <t t-name="projects_visit_tracking.VisitGeolocationButton" owl="1">
         <div class="o_visit_geolocation_button">
             <t t-if="props.record.data.state === 'done'">
-                <button type="button" class="btn btn-secondary" t-on-click="onClickCheckIn" t-att-disabled="state.processing">
-                    <i class="fa fa-map-marker me-1"/>Check Out
+                <button type="button" class="btn btn-danger" t-on-click="onClickCheckIn" t-att-disabled="state.processing">
+                    <i t-if="state.processing" class="fa fa-spinner fa-spin me-1"/>
+                    <i t-else="" class="fa fa-sign-out me-1"/>Check Out
                 </button>
             </t>
             <t t-else="">
                 <button type="button" class="btn btn-primary" t-on-click="onClickCheckIn" t-att-disabled="state.processing">
-                    <i class="fa fa-map-marker me-1"/>Check In
+                    <i t-if="state.processing" class="fa fa-spinner fa-spin me-1"/>
+                    <i t-else="" class="fa fa-map-marker me-1"/>Check In
                 </button>
             </t>
         </div>

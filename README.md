@@ -1,40 +1,39 @@
-# Project Visit Tracking
+# Projects Visit Tracking & Planning
 
-Track project visits with geolocation on project module. This module provides a robust way to monitor field activities, visualize visit routes, and manage visit records with proper access control.
+A mobile-friendly Odoo 19 module for planning project site visits, performing GPS check-in/check-out on mobile devices, and analyzing planned vs. actual hours spent on site.
 
-## Features
+## Key Features
 
-### 📍 Visit Check-in
-*   **Mobile Only Restriction**: Check-ins are strictly restricted to mobile devices (detected via User Agent) to ensure records are made on-site.
-*   **Geolocation Capture**: Automatically captures latitude, longitude, and device info.
-*   **Reverse Geocoding**: Automatically fetches the physical address of the check-in location using server-side Nominatim integration.
+### 📅 Project Visit Planning
+* **Flexible Planning Modes**:
+  * **Full Day(s)**: Automatically calculates planned hours at 8 hours/day based on date range (e.g., Aug 1 to Aug 5 = 5 days × 8h = 40 hours).
+  * **Custom Hours**: Allows direct input of specific hours planned for the visit.
+* **Approval Workflow**:
+  * Employees draft visit plans and submit them for manager approval (`Draft` → `Approval Requested` → `Approved`).
+  * Managers can approve, reject, or reset plans.
 
-### 🗺️ Interactive Dashboard
-*   **Visit Map Dashboard**: A dedicated view using Leaflet.js to visualize visits on an interactive map.
-*   **Route Visualization**: Connects visits for a specific salesperson on a specific day to show their route.
-*   **Filtering**: Filter visits by Salesperson and Date to analyze field coverage.
+### 📱 Mobile-Friendly GPS Check-in & Check-out
+* **Mobile-First UX**: Big, touch-friendly buttons optimized for mobile browsers and tablets.
+* **One-Click Check-in on Approved Plan**: Employees open their approved plan on their mobile phone and click "Check In at Site".
+* **GPS & Timestamp Capture**: Automatically records check-in and check-out time, GPS coordinates, device info, and reverse-geocodes physical address.
+* **Proximity & Duration Safeguard**: Automatically calculates time spent and detects check-outs beyond site tolerance.
 
-### 🔐 Access Control & Security
-*   **Record Rules**:
-    *   **Team Member**: Can only see and manage their own visit records.
-    *   **Project Managers**: Have full visibility into all visits across the team.
-*   **Menu Visibility**: Sensitive menus like "Cancellation Requests" and "Reports" are restricted to managers.
+### ⏱️ Planned vs. Actual Time Tracking
+* **Real-Time Metrics on Plan**:
+  * Total Planned Hours vs. Total Actual Hours Spent.
+  * Remaining / Variance Hours.
+  * Visual Progress bar & Completion percentage.
+  * Detailed session history of all check-ins for the plan.
+* **Smart Project Integration**:
+  * Smart buttons on Project form showing Visit Plans and Check-in count with total site hours.
+  * Direct check-in from Project form automatically links to today's approved plan.
 
-### 🔄 Cancellation Workflow
-*   **Requests**: Team member can request the cancellation of a visit if it was recorded in error.
-*   **Approval**: Project Managers can review, approve, or reject cancellation requests.
+### 🗺️ Live Interactive Map & Reporting
+* **Live Map Dashboard**: Visualizes team members' site locations, planned project stops, and paths taken using Leaflet.js.
+* **Planned vs. Actual Analysis**:
+  * Pivot, Graph, and List views comparing planned visit hours against actual check-in duration.
+  * Filterable by team member, project, day, week, or month.
 
-## Dependencies
-
-This module depends on the following standard Odoo modules:
-*   `base`
-*   `web`
-*   `project`
-
-
-## Technical Details
-
-*   **Version**: 19.0.1.0.0
-*   **License**: LGPL-3
-*   **External Libraries**: Uses Leaflet.js (loaded dynamically) for map rendering.
-*   **API**: Uses Nominatim (OpenStreetMap) for reverse geocoding.
+## Security & Access Control
+* **Team Members (`project.group_project_user`)**: Create and manage own visit plans and check-ins.
+* **Project Managers (`project.group_project_manager`)**: Full access to review, approve/reject plans, view all team visits, manage cancellation requests, and access analysis reports.

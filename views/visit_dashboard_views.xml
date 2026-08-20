@@ -8,36 +8,48 @@
 
     <!-- Main sub-menu under Project app -->
     <menuitem id="menu_field_tracking_main"
-              name="Field Tracking"
+              name="Visit Tracking"
               parent="project.menu_main_pm"
               sequence="50"/>
 
-    <menuitem id="menu_visit_dashboard"
-              name="Live Map"
+    <!-- 1. Planning Menu -->
+    <menuitem id="menu_visit_plans"
+              name="Planning"
               parent="menu_field_tracking_main"
-              action="action_visit_map_dashboard"
-              sequence="5"/>
+              action="action_visit_plan"
+              sequence="5"
+              groups="project.group_project_user"/>
 
+    <!-- 2. Check-ins Menu -->
     <menuitem id="menu_visit_list"
               name="Check-ins"
               parent="menu_field_tracking_main"
               action="action_visit_tracker"
               sequence="10"/>
 
+    <!-- 3. Live Map Menu -->
+    <menuitem id="menu_visit_dashboard"
+              name="Live Map"
+              parent="menu_field_tracking_main"
+              action="action_visit_map_dashboard"
+              sequence="15"/>
+
+    <!-- 4. Cancellation Requests Menu (Manager only) -->
     <menuitem id="menu_visit_cancellation_requests"
               name="Cancellation Requests"
               parent="menu_field_tracking_main"
               action="action_visit_tracker_cancellation_requests"
-              sequence="15"
+              sequence="20"
               groups="project.group_project_manager"/>
 
+    <!-- 5. Reports Menu -->
     <menuitem id="menu_visit_report"
               name="Reports"
               parent="menu_field_tracking_main"
-              sequence="20"/>
+              sequence="25"/>
 
     <menuitem id="menu_visit_report_analysis"
-              name="Visit Analysis"
+              name="Planned vs Actual"
               parent="menu_visit_report"
               action="action_visit_report"
               sequence="10"/>

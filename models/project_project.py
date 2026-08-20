@@ -9,8 +9,20 @@ class ProjectProject(models.Model):
     visit_tracker_ids = fields.One2many(
         'visit.tracker', 'project_id', string='Field Check-ins'
     )
+    visit_plan_ids = fields.One2many(
+        'visit.plan', 'project_id', string='Visit Plans'
+    )
     visit_count = fields.Integer(
-        string='Check-ins', compute='_compute_visit_count'
+        string='Check-ins Count', compute='_compute_visit_count'
+    )
+    visit_plan_count = fields.Integer(
+        string='Visit Plans Count', compute='_compute_plan_count'
+    )
+    total_planned_visit_hours = fields.Float(
+        string='Planned Visit Hours', compute='_compute_visit_hours'
+    )
+    total_actual_visit_hours = fields.Float(
+        string='Actual Visit Hours', compute='_compute_visit_hours'
     )
     has_active_visit = fields.Boolean(
         compute='_compute_active_visit', readonly=True
@@ -23,6 +35,18 @@ class ProjectProject(models.Model):
     def _compute_visit_count(self):
         for record in self:
             record.visit_count = len(record.visit_tracker_ids)
+
+    @api.depends('visit_plan_ids')
+    def _compute_plan_count(self):
+        for record in self:
+            record.visit_plan_count = len(record.visit_plan_ids)
+
+    @api.depends('visit_plan_ids.planned_hours', 'visit_tracker_ids.duration_hours', 'visit_tracker_ids.state')
+    def _compute_visit_hours(self):
+        for record in self:
+            record.total_planned_visit_hours = sum(record.visit_plan_ids.mapped('planned_hours'))
+            valid_visits = record.visit_tracker_ids.filtered(lambda v: v.state in ('done', 'checked_out'))
+            record.total_actual_visit_hours = round(sum(valid_visits.mapped('duration_hours')), 2)
 
     @api.depends('visit_tracker_ids.state', 'visit_tracker_ids.user_id')
     def _compute_active_visit(self):
@@ -39,9 +63,21 @@ class ProjectProject(models.Model):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': 'Field Check-ins',
+            'name': _('Check-ins: %s') % self.name,
             'res_model': 'visit.tracker',
             'view_mode': 'list,form',
+            'domain': [('project_id', '=', self.id)],
+            'context': {'default_project_id': self.id},
+        }
+
+    def action_view_plans(self):
+        """Open visit plans for this project."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Visit Plans: %s') % self.name,
+            'res_model': 'visit.plan',
+            'view_mode': 'list,kanban,form',
             'domain': [('project_id', '=', self.id)],
             'context': {'default_project_id': self.id},
         }
@@ -68,9 +104,20 @@ class ProjectProject(models.Model):
                 % {'project': project_name, 'time': visit_date}
             )
 
+        # Look for approved plan for this user & project today
+        today = fields.Date.context_today(self)
+        approved_plan = self.env['visit.plan'].search([
+            ('user_id', '=', self.env.user.id),
+            ('project_id', '=', self.id),
+            ('start_date', '<=', today),
+            ('end_date', '>=', today),
+            ('state', '=', 'approved'),
+        ], limit=1)
+
         try:
             visit = self.env['visit.tracker'].create({
                 'project_id': self.id,
+                'plan_id': approved_plan.id if approved_plan else False,
                 'latitude': lat,
                 'longitude': long,
                 'device_info': device_info,

@@ -8,6 +8,7 @@
             <search string="Search Field Check-ins">
                 <field name="project_id"/>
                 <field name="user_id"/>
+                <field name="plan_id"/>
                 <field name="location_address"/>
                 <filter string="Checked In" name="checked_in" domain="[('state', '=', 'done')]"/>
                 <filter string="Checked Out" name="checked_out" domain="[('state', '=', 'checked_out')]"/>
@@ -21,7 +22,8 @@
                 <separator/>
                 <group>
                     <filter string="Project" name="group_project" context="{'group_by': 'project_id'}"/>
-                    <filter string="Team Member" name="group_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="Employee / Team Member" name="group_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="Visit Plan" name="group_plan" context="{'group_by': 'plan_id'}"/>
                     <filter string="Check-in Date" name="group_date" context="{'group_by': 'visit_date:day'}"/>
                     <filter string="Status" name="group_state" context="{'group_by': 'state'}"/>
                 </group>
@@ -34,10 +36,8 @@
         <field name="name">visit.tracker.form</field>
         <field name="model">visit.tracker</field>
         <field name="arch" type="xml">
-            <form string="Field Check-in">
+            <form string="Project Field Check-in">
                 <header>
-                    <button name="action_check_out" string="Check Out" type="object"
-                            class="btn-primary" invisible="1"/>
                     <button name="action_request_cancellation" string="Request Cancellation" type="object"
                             class="btn-warning" invisible="state not in ('done', 'checked_out')"/>
                     <button name="action_approve_cancellation" string="Approve Cancellation" type="object"
@@ -53,11 +53,12 @@
                         <group string="Visit Information">
                             <field name="project_id"/>
                             <field name="user_id"/>
+                            <field name="plan_id" readonly="1"/>
                             <field name="visit_date"/>
                             <field name="check_out_date"/>
+                            <field name="duration_hours" widget="float_time"/>
                             <field name="duration_minutes"/>
-                            <field name="route_line_id" readonly="1"/>
-                            <field name="planned_duration_minutes" invisible="not route_line_id"/>
+                            <field name="planned_hours" widget="float_time" invisible="not plan_id"/>
                             <field name="is_planned" widget="boolean_toggle" readonly="1" invisible="1"/>
                         </group>
                         <group string="Location">
@@ -104,9 +105,11 @@
         <field name="arch" type="xml">
             <list string="Field Check-ins" default_order="visit_date desc">
                 <field name="visit_date"/>
-                <field name="check_out_date" optional="hide"/>
+                <field name="check_out_date" optional="show"/>
                 <field name="user_id"/>
-                <field name="project_id" optional="show"/>
+                <field name="project_id"/>
+                <field name="plan_id" optional="show"/>
+                <field name="duration_hours" widget="float_time" sum="Total Hours"/>
                 <field name="location_address" optional="show"/>
                 <field name="state" widget="badge"
                        decoration-success="state == 'checked_out'"
@@ -130,6 +133,7 @@
             <pivot string="Check-in Analysis" sample="1">
                 <field name="user_id" type="row"/>
                 <field name="visit_date" type="col" interval="day"/>
+                <field name="duration_hours" type="measure"/>
             </pivot>
         </field>
     </record>
@@ -141,6 +145,7 @@
         <field name="arch" type="xml">
             <graph string="Check-in Statistics" type="bar" sample="1">
                 <field name="user_id"/>
+                <field name="duration_hours" type="measure"/>
             </graph>
         </field>
     </record>
@@ -157,7 +162,7 @@
                 Record your first field check-in!
             </p>
             <p>
-                Track your team's location and check-ins at project sites.
+                Track team location and check-ins at project sites using mobile GPS.
             </p>
         </field>
     </record>
@@ -177,14 +182,5 @@
                 Check-ins for which a team member has requested cancellation appear here.
             </p>
         </field>
-    </record>
-
-    <!-- Report Action -->
-    <record id="action_visit_tracker_report" model="ir.actions.act_window">
-        <field name="name">Check-in Reports</field>
-        <field name="res_model">visit.tracker</field>
-        <field name="view_mode">graph,pivot,list</field>
-        <field name="search_view_id" ref="view_visit_tracker_search"/>
-        <field name="context">{'search_default_checked_in': 1, 'search_default_group_user': 1}</field>
     </record>
 </odoo>

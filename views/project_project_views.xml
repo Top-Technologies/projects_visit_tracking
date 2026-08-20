@@ -1,14 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Extend project.project form view to add Check-in button and smart button -->
+    <!-- Extend project.project form view to add Visit Planning and Check-ins smart buttons -->
     <record id="project_project_view_form_inherit_field_tracking" model="ir.ui.view">
         <field name="name">project.project.form.inherit.field.tracking</field>
         <field name="model">project.project</field>
         <field name="inherit_id" ref="project.edit_project"/>
         <field name="arch" type="xml">
 
-            <!-- Smart button for check-in count -->
+            <!-- Smart button for visit plans and check-in count -->
             <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_plans" type="object"
+                        class="oe_stat_button" icon="fa-calendar-check-o"
+                        groups="project.group_project_user">
+                    <div class="o_stat_info">
+                        <field name="visit_plan_count" class="o_stat_value"/>
+                        <span class="o_stat_text">Visit Plans</span>
+                    </div>
+                </button>
                 <button name="action_view_check_ins" type="object"
                         class="oe_stat_button" icon="fa-map-marker"
                         invisible="visit_count == 0"

@@ -2,8 +2,7 @@
 
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { Component } from "@odoo/owl";
-import { useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 
 // Service that runs geolocation + RPC outside any form component.
@@ -22,11 +21,11 @@ const visitCheckInService = {
         }
 
         function buildActiveVisitMessage(info) {
-            const projectName = info?.project_name || info?.lead_name || info?.partner_name || "another project";
+            const name = info?.plan_name || info?.project_name || "another project";
             const since = info?.visit_date ? String(info.visit_date) : "";
             return since
-                ? `You already have an active check-in at ${projectName} since ${since}.`
-                : `You already have an active check-in at ${projectName}.`;
+                ? `You already have an active check-in at ${name} since ${since}.`
+                : `You already have an active check-in at ${name}.`;
         }
 
         function openVisitForm(visitId) {
@@ -56,14 +55,13 @@ const visitCheckInService = {
                                     sticky: true,
                                 });
                                 openVisitForm(info.id);
-                                return;
+                                return false;
                             }
                             // Proceed to geolocation
                             return this._performGeoCall(recordId, modelName, method, successMsg, options, notification, orm, action);
                         })
                         .catch((err) => {
                             notification.add("Error: " + formatRpcError(err), { type: "danger" });
-                            // Do not reject: avoid UncaughtPromiseError in Owl for expected failures.
                             return false;
                         });
                 } else {
@@ -78,8 +76,7 @@ const visitCheckInService = {
                         (position) => {
                             const { latitude, longitude } = position.coords;
                             const device_info = navigator.userAgent;
-                            // For record methods, Odoo expects the first positional argument to be the list of ids.
-                            // So we must pass: [[recordId], ...methodArgs]
+                            // For record methods: [[recordId], ...methodArgs]
                             const args = [[recordId], latitude, longitude];
                             if (method === 'action_check_in') {
                                 args.push(device_info, false);
@@ -88,39 +85,33 @@ const visitCheckInService = {
                             orm.call(modelName, method, args)
                                 .then((result) => {
                                     notification.add(successMsg, { type: "success" });
-                                    if (modelName === "crm.lead" && method === "action_check_in" && Number.isInteger(result)) {
-                                        openVisitForm(result);
-                                    } else if (modelName === "visit.tracker") {
-                                        action.switchView("form", { resId: recordId });
-                                    } else {
+                                    if (modelName === "visit.tracker") {
                                         action.switchView("form", { resId: recordId });
                                     }
                                     resolve(result);
                                 })
                                 .catch((err) => {
                                     notification.add("Error: " + formatRpcError(err), { type: "danger" });
-                                    // Do not reject: avoid UncaughtPromiseError in Owl for expected failures.
                                     resolve(false);
                                 });
                         },
                         (error) => {
-                            let msg = "Error getting location.";
+                            let msg = "Error getting GPS location.";
                             switch (error.code) {
                                 case error.PERMISSION_DENIED:
-                                    msg = "User denied the request for Geolocation.";
+                                    msg = "Location permission was denied. Please allow GPS location in your mobile browser.";
                                     break;
                                 case error.POSITION_UNAVAILABLE:
-                                    msg = "Location information is unavailable.";
+                                    msg = "GPS location information is unavailable. Please check your mobile device location settings.";
                                     break;
                                 case error.TIMEOUT:
-                                    msg = "The request to get user location timed out.";
+                                    msg = "GPS location request timed out. Please try again.";
                                     break;
                                 case error.UNKNOWN_ERROR:
-                                    msg = "An unknown error occurred.";
+                                    msg = "An unknown error occurred while getting location.";
                                     break;
                             }
                             notification.add(msg, { type: "danger" });
-                            // Do not reject: avoid UncaughtPromiseError in Owl for expected failures.
                             resolve(false);
                         },
                         options
@@ -132,12 +123,78 @@ const visitCheckInService = {
 };
 registry.category("services").add("visit_check_in", visitCheckInService);
 
-// Helper to detect mobile devices via User Agent
+// Helper to detect mobile devices via User Agent or mobile viewport / touch
 function isMobileDevice() {
     const userAgent = navigator.userAgent || navigator.vendor || window.opera;
     const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
-    return mobileRegex.test(userAgent);
+    return mobileRegex.test(userAgent) || (window.innerWidth <= 768) || ('ontouchstart' in window);
 }
+
+/**
+ * Geolocation Button Widget for Visit Plan Form
+ */
+export class PlanGeolocationButton extends Component {
+    static template = "projects_visit_tracking.PlanGeolocationButton";
+    static props = {
+        ...standardWidgetProps,
+    };
+
+    setup() {
+        this.notification = useService("notification");
+        this.visitCheckIn = useService("visit_check_in");
+        this.state = useState({ processing: false });
+    }
+
+    async onClickCheckIn() {
+        if (this.state.processing) {
+            return;
+        }
+
+        if (!isMobileDevice()) {
+            this.notification.add("Site check-in is only allowed from mobile devices.", {
+                type: "danger",
+            });
+            return;
+        }
+
+        if (!navigator.geolocation) {
+            this.notification.add("Geolocation is not supported by your mobile browser.", {
+                type: "danger",
+            });
+            return;
+        }
+
+        const planId = this.props.record.resId;
+        if (!planId) {
+            this.notification.add("Please save the visit plan first.", {
+                type: "warning",
+            });
+            return;
+        }
+
+        const isCheckedIn = Boolean(this.props.record.data.has_active_check_in);
+        const actionType = isCheckedIn ? "check_out" : "check_in";
+
+        this.notification.add(
+            isCheckedIn ? "Capturing check-out location..." : "Capturing check-in location...",
+            { type: "info" }
+        );
+
+        this.state.processing = true;
+        try {
+            await this.visitCheckIn.startCheckIn(planId, "visit.plan", actionType);
+            if (this.props.record.load) {
+                await this.props.record.load();
+            }
+        } finally {
+            this.state.processing = false;
+        }
+    }
+}
+
+registry.category("view_widgets").add("plan_geolocation_button", {
+    component: PlanGeolocationButton,
+});
 
 /**
  * Geolocation Button Widget for Project Forms
@@ -158,7 +215,7 @@ export class ProjectGeolocationButton extends Component {
         if (this.state.processing) {
             return;
         }
-        
+
         if (!isMobileDevice()) {
             this.notification.add("Check-in is only allowed from mobile devices.", {
                 type: "danger",
@@ -206,12 +263,7 @@ export class ProjectGeolocationButton extends Component {
     }
 }
 
-// Register the widget for project form view
 registry.category("view_widgets").add("project_geolocation_button", {
-    component: ProjectGeolocationButton,
-});
-// Register alias lead_geolocation_button for backward compatibility
-registry.category("view_widgets").add("lead_geolocation_button", {
     component: ProjectGeolocationButton,
 });
 
@@ -230,25 +282,11 @@ export class VisitGeolocationButton extends Component {
         this.state = useState({ processing: false });
     }
 
-    get buttonText() {
-        if (this.props.record.data.state === 'done') {
-            return "Check Out";
-        }
-        return "Check In";
-    }
-
-    get buttonClass() {
-        if (this.props.record.data.state === 'done') {
-            return "btn btn-primary";
-        }
-        return "btn btn-primary";
-    }
-
     async onClickCheckIn() {
         if (this.state.processing) {
             return;
         }
-        
+
         if (!isMobileDevice()) {
             this.notification.add("Action is only allowed from mobile devices.", {
                 type: "danger",
