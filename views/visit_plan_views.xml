@@ -50,46 +50,44 @@
                 <field name="completion_rate"/>
                 <field name="has_active_check_in"/>
                 <templates>
-                    <t t-name="kanban-box">
-                        <div t-attf-class="oe_kanban_global_click p-3 border rounded shadow-sm #{record.has_active_check_in.raw_value ? 'border-success bg-light' : ''}">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <strong class="fs-6 text-primary"><field name="name"/></strong>
-                                <field name="state" widget="badge"
-                                       decoration-success="state == 'approved'"
-                                       decoration-info="state == 'wait_approval'"
-                                       decoration-muted="state == 'draft'"
-                                       decoration-danger="state == 'rejected'"/>
-                            </div>
-
-                            <div class="mb-2">
-                                <div class="text-dark fw-bold">
-                                    <i class="fa fa-building-o text-muted me-1"/> <field name="project_id"/>
-                                </div>
-                                <div class="text-muted small">
-                                    <i class="fa fa-user-o me-1"/> <field name="user_id"/>
-                                </div>
-                            </div>
-
-                            <div class="d-flex justify-content-between align-items-center small text-muted mb-2">
-                                <span>
-                                    <i class="fa fa-calendar me-1"/> <field name="start_date"/> to <field name="end_date"/>
-                                </span>
-                            </div>
-
-                            <div class="bg-white p-2 rounded border mb-2">
-                                <div class="d-flex justify-content-between small mb-1">
-                                    <span><strong>Planned:</strong> <field name="planned_hours" widget="float_time"/></span>
-                                    <span><strong>Actual:</strong> <field name="actual_hours" widget="float_time"/></span>
-                                </div>
-                                <field name="completion_rate" widget="progressbar"/>
-                            </div>
-
-                            <t t-if="record.has_active_check_in.raw_value">
-                                <div class="badge bg-success w-100 py-2 text-uppercase">
-                                    <i class="fa fa-map-marker me-1"/> Currently Checked In
-                                </div>
-                            </t>
+                    <t t-name="card">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong class="fs-6 text-primary"><field name="name"/></strong>
+                            <field name="state" widget="badge"
+                                   decoration-success="state == 'approved'"
+                                   decoration-info="state == 'wait_approval'"
+                                   decoration-muted="state == 'draft'"
+                                   decoration-danger="state == 'rejected'"/>
                         </div>
+
+                        <div class="mb-2">
+                            <div class="text-dark fw-bold">
+                                <i class="fa fa-building-o text-muted me-1"/> <field name="project_id"/>
+                            </div>
+                            <div class="text-muted small">
+                                <i class="fa fa-user-o me-1"/> <field name="user_id"/>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center small text-muted mb-2">
+                            <span>
+                                <i class="fa fa-calendar me-1"/> <field name="start_date"/> to <field name="end_date"/>
+                            </span>
+                        </div>
+
+                        <div class="bg-white p-2 rounded border mb-2">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span><strong>Planned:</strong> <field name="planned_hours" widget="float_time"/></span>
+                                <span><strong>Actual:</strong> <field name="actual_hours" widget="float_time"/></span>
+                            </div>
+                            <field name="completion_rate" widget="progressbar"/>
+                        </div>
+
+                        <t t-if="record.has_active_check_in.raw_value">
+                            <div class="badge bg-success w-100 py-2 text-uppercase">
+                                <i class="fa fa-map-marker me-1"/> Currently Checked In
+                            </div>
+                        </t>
                     </t>
                 </templates>
             </kanban>
