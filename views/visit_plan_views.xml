@@ -136,14 +136,15 @@
         <field name="arch" type="xml">
             <form string="Project Visit Plan">
                 <header>
+                    <field name="is_current_approver" invisible="1"/>
                     <button name="action_request_approval" string="Request Approval" type="object"
                             class="btn-primary" invisible="state != 'draft'"/>
                     <button name="action_approve" string="Approve" type="object"
                             class="btn-success"
-                            invisible="state != 'wait_approval'"/>
+                            invisible="state != 'wait_approval' or not is_current_approver"/>
                     <button name="action_reject" string="Reject" type="object"
                             class="btn-danger"
-                            invisible="state != 'wait_approval'"/>
+                            invisible="state != 'wait_approval' or not is_current_approver"/>
                     <button name="action_reset_draft" string="Reset to Draft" type="object"
                             class="btn-secondary" invisible="state not in ('wait_approval', 'rejected')"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,wait_approval,approved,rejected"/>

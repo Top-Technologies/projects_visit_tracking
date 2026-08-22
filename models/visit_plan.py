@@ -105,6 +105,17 @@ class VisitPlan(models.Model):
         help="Specify the project administrator / manager who must review and approve this visit plan"
     )
 
+    is_current_approver = fields.Boolean(
+        string="Is Current Approver",
+        compute="_compute_is_current_approver"
+    )
+
+    @api.depends_context('uid')
+    @api.depends('approver_id')
+    def _compute_is_current_approver(self):
+        for plan in self:
+            plan.is_current_approver = bool(plan.approver_id and plan.approver_id == self.env.user)
+
     approved_by_id = fields.Many2one(
         "res.users",
         string="Approved By",
@@ -365,10 +376,8 @@ class VisitPlan(models.Model):
 
     def action_approve(self):
         for plan in self:
-            is_manager = self.env.user.has_group('project.group_project_manager')
-            is_designated_approver = bool(plan.approver_id and plan.approver_id == self.env.user)
-            if not (is_manager or is_designated_approver):
-                raise UserError(_('Only project managers or the designated approver can approve visit plans.'))
+            if plan.approver_id and plan.approver_id != self.env.user:
+                raise UserError(_('Only the assigned approver (%(approver)s) can approve this visit plan.') % {'approver': plan.approver_id.name})
 
         # Mark all pending activities for these plans as done
         activities = self.env['mail.activity'].search([
@@ -395,10 +404,8 @@ class VisitPlan(models.Model):
 
     def action_reject(self):
         for plan in self:
-            is_manager = self.env.user.has_group('project.group_project_manager')
-            is_designated_approver = bool(plan.approver_id and plan.approver_id == self.env.user)
-            if not (is_manager or is_designated_approver):
-                raise UserError(_('Only project managers or the designated approver can reject visit plans.'))
+            if plan.approver_id and plan.approver_id != self.env.user:
+                raise UserError(_('Only the assigned approver (%(approver)s) can reject this visit plan.') % {'approver': plan.approver_id.name})
 
         # Remove open activities
         activities = self.env['mail.activity'].search([
