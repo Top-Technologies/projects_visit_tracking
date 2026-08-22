@@ -7,6 +7,12 @@
         <field name="inherit_id" ref="project.edit_project"/>
         <field name="arch" type="xml">
 
+            <!-- Check-in / Check-out button in header -->
+            <xpath expr="//header" position="inside">
+                <field name="has_active_visit" invisible="1"/>
+                <widget name="project_geolocation_button"/>
+            </xpath>
+
             <!-- Smart button for visit plans and check-in count -->
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button name="action_view_plans" type="object"

@@ -6,7 +6,6 @@ import { Component, useState } from "@odoo/owl";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 
 // Service that runs geolocation + RPC outside any form component.
-// Used so the browser's geolocation callback is not tied to a component that may be destroyed on mobile.
 const visitCheckInService = {
     dependencies: ["orm", "notification", "action"],
     start(env, { orm, notification, action }) {
@@ -40,75 +39,68 @@ const visitCheckInService = {
         }
 
         return {
-            startCheckIn(recordId, modelName, actionType = 'check_in') {
+            async startCheckIn(recordId, modelName, actionType = 'check_in') {
                 const method = actionType === 'check_out' ? 'action_check_out' : 'action_check_in';
                 const successMsg = actionType === 'check_out' ? "Checked out successfully!" : "Checked in successfully!";
 
                 if (actionType === 'check_in') {
                     // Check existing check-ins only for check-in action
-                    return orm.call("visit.tracker", "get_active_check_in_info", [])
-                        .then((info) => {
-                            if (info?.active) {
-                                const msg = buildActiveVisitMessage(info);
-                                notification.add(msg + " Opening your active visit...", {
-                                    type: "warning",
-                                    sticky: true,
-                                });
-                                openVisitForm(info.id);
-                                return false;
-                            }
-                            // Proceed to geolocation
-                            return this._performGeoCall(recordId, modelName, method, successMsg, options, notification, orm, action);
-                        })
-                        .catch((err) => {
-                            notification.add("Error: " + formatRpcError(err), { type: "danger" });
+                    try {
+                        const info = await orm.call("visit.tracker", "get_active_check_in_info", []);
+                        if (info?.active) {
+                            const msg = buildActiveVisitMessage(info);
+                            notification.add(msg + " Opening your active visit...", {
+                                type: "warning",
+                                sticky: true,
+                            });
+                            openVisitForm(info.id);
                             return false;
-                        });
-                } else {
-                    // Direct check-out with geolocation
-                    return this._performGeoCall(recordId, modelName, method, successMsg, options, notification, orm, action);
+                        }
+                    } catch (err) {
+                        notification.add("Error checking active visits: " + formatRpcError(err), { type: "danger" });
+                        return false;
+                    }
                 }
+
+                // Proceed to geolocation call
+                return this._performGeoCall(recordId, modelName, method, successMsg, options, notification, orm);
             },
 
-            _performGeoCall(recordId, modelName, method, successMsg, options, notification, orm, action) {
+            _performGeoCall(recordId, modelName, method, successMsg, options, notification, orm) {
                 return new Promise((resolve) => {
                     navigator.geolocation.getCurrentPosition(
-                        (position) => {
-                            const { latitude, longitude } = position.coords;
-                            const device_info = navigator.userAgent;
-                            // For record methods: [[recordId], ...methodArgs]
-                            const args = [[recordId], latitude, longitude];
-                            if (method === 'action_check_in') {
-                                args.push(device_info, false);
-                            }
+                        async (position) => {
+                            try {
+                                const { latitude, longitude } = position.coords;
+                                const device_info = navigator.userAgent;
+                                // For record methods: [[recordId], ...methodArgs]
+                                const args = [[recordId], latitude, longitude];
+                                if (method === 'action_check_in') {
+                                    args.push(device_info, false);
+                                }
 
-                            orm.call(modelName, method, args)
-                                .then((result) => {
-                                    notification.add(successMsg, { type: "success" });
-                                    if (modelName === "visit.tracker") {
-                                        action.switchView("form", { resId: recordId });
-                                    }
-                                    resolve(result);
-                                })
-                                .catch((err) => {
-                                    notification.add("Error: " + formatRpcError(err), { type: "danger" });
-                                    resolve(false);
-                                });
+                                const result = await orm.call(modelName, method, args);
+                                notification.add(successMsg, { type: "success" });
+                                resolve(result !== undefined ? result : true);
+                            } catch (err) {
+                                notification.add("Error: " + formatRpcError(err), { type: "danger" });
+                                resolve(false);
+                            }
                         },
                         (error) => {
-                            let msg = "Error getting GPS location.";
+                            let msg = "Error getting location.";
                             switch (error.code) {
                                 case error.PERMISSION_DENIED:
-                                    msg = "Location permission was denied. Please allow GPS location in your mobile browser.";
+                                    msg = "Location permission was denied. Please allow location access in your browser settings.";
                                     break;
                                 case error.POSITION_UNAVAILABLE:
-                                    msg = "GPS location information is unavailable. Please check your mobile device location settings.";
+                                    msg = "Location information is unavailable. Please check your device location settings.";
                                     break;
                                 case error.TIMEOUT:
-                                    msg = "GPS location request timed out. Please try again.";
+                                    msg = "Location request timed out. Please try again.";
                                     break;
                                 case error.UNKNOWN_ERROR:
-                                    msg = "An unknown error occurred while getting location.";
+                                    msg = "An unknown error occurred while retrieving location.";
                                     break;
                             }
                             notification.add(msg, { type: "danger" });
@@ -122,13 +114,6 @@ const visitCheckInService = {
     },
 };
 registry.category("services").add("visit_check_in", visitCheckInService);
-
-// Helper to detect mobile devices via User Agent or mobile viewport / touch
-function isMobileDevice() {
-    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-    const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
-    return mobileRegex.test(userAgent) || (window.innerWidth <= 768) || ('ontouchstart' in window);
-}
 
 /**
  * Geolocation Button Widget for Visit Plan Form
@@ -150,15 +135,8 @@ export class PlanGeolocationButton extends Component {
             return;
         }
 
-        if (!isMobileDevice()) {
-            this.notification.add("Site check-in is only allowed from mobile devices.", {
-                type: "danger",
-            });
-            return;
-        }
-
         if (!navigator.geolocation) {
-            this.notification.add("Geolocation is not supported by your mobile browser.", {
+            this.notification.add("Geolocation is not supported by your browser.", {
                 type: "danger",
             });
             return;
@@ -182,8 +160,8 @@ export class PlanGeolocationButton extends Component {
 
         this.state.processing = true;
         try {
-            await this.visitCheckIn.startCheckIn(planId, "visit.plan", actionType);
-            if (this.props.record.load) {
+            const res = await this.visitCheckIn.startCheckIn(planId, "visit.plan", actionType);
+            if (res && this.props.record.load) {
                 await this.props.record.load();
             }
         } finally {
@@ -216,13 +194,6 @@ export class ProjectGeolocationButton extends Component {
             return;
         }
 
-        if (!isMobileDevice()) {
-            this.notification.add("Check-in is only allowed from mobile devices.", {
-                type: "danger",
-            });
-            return;
-        }
-
         if (!navigator.geolocation) {
             this.notification.add("Geolocation is not supported by your browser.", {
                 type: "danger",
@@ -235,12 +206,14 @@ export class ProjectGeolocationButton extends Component {
         let projectId;
         try {
             this.state.processing = true;
-            const saved = await this.props.record.save();
-            if (!saved) {
-                this.notification.add("Failed to save the project. Please check required fields.", {
-                    type: "danger",
-                });
-                return;
+            if (this.props.record.isDirty) {
+                const saved = await this.props.record.save();
+                if (!saved) {
+                    this.notification.add("Failed to save the project. Please check required fields.", {
+                        type: "danger",
+                    });
+                    return;
+                }
             }
             projectId = this.props.record.resId;
         } catch (error) {
@@ -253,8 +226,8 @@ export class ProjectGeolocationButton extends Component {
         const actionType = this.props.record.data.has_active_visit ? "check_out" : "check_in";
         this.state.processing = true;
         try {
-            await this.visitCheckIn.startCheckIn(projectId, "project.project", actionType);
-            if (this.props.record.load) {
+            const res = await this.visitCheckIn.startCheckIn(projectId, "project.project", actionType);
+            if (res && this.props.record.load) {
                 await this.props.record.load();
             }
         } finally {
@@ -287,13 +260,6 @@ export class VisitGeolocationButton extends Component {
             return;
         }
 
-        if (!isMobileDevice()) {
-            this.notification.add("Action is only allowed from mobile devices.", {
-                type: "danger",
-            });
-            return;
-        }
-
         if (!navigator.geolocation) {
             this.notification.add("Geolocation is not supported by your browser.", {
                 type: "danger",
@@ -307,12 +273,14 @@ export class VisitGeolocationButton extends Component {
         let resId;
         try {
             this.state.processing = true;
-            const saved = await this.props.record.save();
-            if (!saved) {
-                this.notification.add("Failed to save the record. Please check required fields.", {
-                    type: "danger",
-                });
-                return;
+            if (this.props.record.isDirty) {
+                const saved = await this.props.record.save();
+                if (!saved) {
+                    this.notification.add("Failed to save the record. Please check required fields.", {
+                        type: "danger",
+                    });
+                    return;
+                }
             }
             resId = this.props.record.resId;
         } catch (error) {
@@ -324,8 +292,8 @@ export class VisitGeolocationButton extends Component {
 
         this.state.processing = true;
         try {
-            await this.visitCheckIn.startCheckIn(resId, "visit.tracker", actionType);
-            if (this.props.record.load) {
+            const res = await this.visitCheckIn.startCheckIn(resId, "visit.tracker", actionType);
+            if (res && this.props.record.load) {
                 await this.props.record.load();
             }
         } finally {

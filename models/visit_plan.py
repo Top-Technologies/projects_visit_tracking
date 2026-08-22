@@ -10,6 +10,7 @@ _logger = logging.getLogger(__name__)
 
 class VisitPlan(models.Model):
     _name = "visit.plan"
+    _inherit = ["mail.thread", "mail.activity.mixin"]
     _description = "Project Visit Plan"
     _order = "start_date desc, user_id"
 
@@ -266,6 +267,19 @@ class VisitPlan(models.Model):
         return super().write(vals)
 
     def action_request_approval(self):
+        project_admin_group = self.env.ref('project.group_project_manager', raise_if_not_found=False)
+        admin_users = self.env['res.users']
+        if project_admin_group:
+            if hasattr(project_admin_group, 'all_user_ids'):
+                admin_users = project_admin_group.all_user_ids.filtered(lambda u: u.active and not u.share)
+            elif hasattr(project_admin_group, 'user_ids'):
+                admin_users = project_admin_group.user_ids.filtered(lambda u: u.active and not u.share)
+            elif hasattr(project_admin_group, 'users'):
+                admin_users = project_admin_group.users.filtered(lambda u: u.active and not u.share)
+
+        activity_type = self.env.ref('mail.mail_activity_data_todo', raise_if_not_found=False)
+        activity_type_id = activity_type.id if activity_type else False
+
         for plan in self:
             if plan.state != 'draft':
                 continue
@@ -273,9 +287,65 @@ class VisitPlan(models.Model):
                 raise UserError(_('Please select a project before requesting approval.'))
             plan.state = 'wait_approval'
 
+            # Notify all users with Project Administrator privileges
+            if admin_users:
+                admin_partners = admin_users.mapped('partner_id')
+                plan.message_post(
+                    body=_(
+                        "Visit plan approval requested by <b>%(user)s</b> for Project <b>%(project)s</b> (%(start)s to %(end)s, %(hours).2f hours planned)."
+                    ) % {
+                        'user': plan.user_id.name,
+                        'project': plan.project_id.display_name,
+                        'start': plan.start_date,
+                        'end': plan.end_date,
+                        'hours': plan.planned_hours,
+                    },
+                    partner_ids=admin_partners.ids,
+                    message_type='notification',
+                    subtype_xmlid='mail.mt_comment',
+                )
+
+                # Schedule approval activity for each project admin so it appears in their activity list
+                model_id = (
+                    self.env['ir.model']._get_id('visit.plan')
+                    if hasattr(self.env['ir.model'], '_get_id')
+                    else (
+                        self.env['ir.model']._get('visit.plan').id
+                        if hasattr(self.env['ir.model'], '_get')
+                        else self.env['ir.model'].search([('model', '=', 'visit.plan')], limit=1).id
+                    )
+                )
+                for admin in admin_users:
+                    existing = self.env['mail.activity'].search([
+                        ('res_model', '=', 'visit.plan'),
+                        ('res_id', '=', plan.id),
+                        ('user_id', '=', admin.id),
+                    ], limit=1)
+                    if not existing and activity_type_id and model_id:
+                        self.env['mail.activity'].create({
+                            'activity_type_id': activity_type_id,
+                            'summary': _('Visit Plan Approval Request: %s') % (plan.name or plan.project_id.name),
+                            'note': _(
+                                'Team Member <b>%s</b> has requested approval for their visit plan at project <b>%s</b> (%s to %s).'
+                            ) % (plan.user_id.name, plan.project_id.display_name, plan.start_date, plan.end_date),
+                            'res_model_id': model_id,
+                            'res_id': plan.id,
+                            'user_id': admin.id,
+                            'date_deadline': plan.start_date or fields.Date.context_today(self),
+                        })
+
     def action_approve(self):
         if not self.env.user.has_group('project.group_project_manager'):
             raise UserError(_('Only project managers can approve visit plans.'))
+
+        # Mark all pending activities for these plans as done
+        activities = self.env['mail.activity'].search([
+            ('res_model', '=', 'visit.plan'),
+            ('res_id', 'in', self.ids),
+        ])
+        if activities:
+            activities.action_feedback(feedback=_('Approved by %s') % self.env.user.name)
+
         self.write({
             'state': 'approved',
             'approved_by_id': self.env.user.id,
@@ -283,21 +353,60 @@ class VisitPlan(models.Model):
             'rejection_reason': False,
         })
 
+        for plan in self:
+            plan.message_post(
+                body=_("Visit plan approved by <b>%(manager)s</b>.") % {'manager': self.env.user.name},
+                partner_ids=[plan.user_id.partner_id.id] if plan.user_id.partner_id else [],
+                message_type='comment',
+                subtype_xmlid='mail.mt_comment',
+            )
+
     def action_reject(self):
         if not self.env.user.has_group('project.group_project_manager'):
             raise UserError(_('Only project managers can reject visit plans.'))
+
+        # Remove open activities
+        activities = self.env['mail.activity'].search([
+            ('res_model', '=', 'visit.plan'),
+            ('res_id', 'in', self.ids),
+        ])
+        activities.unlink()
+
         self.write({
             'state': 'rejected',
             'approved_by_id': False,
             'approval_date': False,
         })
 
+        for plan in self:
+            plan.message_post(
+                body=_("Visit plan rejected by <b>%(manager)s</b>.") % {'manager': self.env.user.name},
+                partner_ids=[plan.user_id.partner_id.id] if plan.user_id.partner_id else [],
+                message_type='comment',
+                subtype_xmlid='mail.mt_comment',
+            )
+
     def action_reset_draft(self):
         is_manager = self.env.user.has_group('project.group_project_manager')
         for plan in self:
             if not is_manager and plan.user_id != self.env.user:
                 raise UserError(_('You can only reset your own visit plan to draft.'))
-            plan.write({'state': 'draft'})
+
+            # Remove open activities
+            activities = self.env['mail.activity'].search([
+                ('res_model', '=', 'visit.plan'),
+                ('res_id', '=', plan.id),
+            ])
+            activities.unlink()
+
+            plan.write({'state': 'draft', 'approved_by_id': False, 'approval_date': False})
+
+            plan.message_post(
+                body=_("Visit plan reset to draft by <b>%(user)s</b>.") % {'user': self.env.user.name},
+                partner_ids=[plan.user_id.partner_id.id] if plan.user_id.partner_id else [],
+                message_type='comment',
+                subtype_xmlid='mail.mt_comment',
+            )
 
     def action_view_check_ins(self):
         self.ensure_one()

@@ -14,11 +14,10 @@
         - Pivot and graph analysis comparing planned vs actual hours
     """,
     'author': 'Top-tech',
-    'depends': ['base', 'web', 'project'],
+    'depends': ['base', 'web', 'project', 'mail'],
     'data': [
         'security/ir.model.access.csv',
         'security/security.xml',
-        'security/visit_plan_security.xml',
         'views/visit_plan_views.xml',
         'views/visit_tracker_views.xml',
         'views/project_project_views.xml',

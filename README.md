@@ -8,13 +8,14 @@ A mobile-friendly Odoo 19 module for planning project site visits, performing GP
 * **Flexible Planning Modes**:
   * **Full Day(s)**: Automatically calculates planned hours at 8 hours/day based on date range (e.g., Aug 1 to Aug 5 = 5 days × 8h = 40 hours).
   * **Custom Hours**: Allows direct input of specific hours planned for the visit.
-* **Approval Workflow**:
-  * Employees draft visit plans and submit them for manager approval (`Draft` → `Approval Requested` → `Approved`).
-  * Managers can approve, reject, or reset plans.
+* **Approval Workflow & Auto-Notifications**:
+  * Employees draft visit plans and submit them for approval (`Draft` → `Approval Requested` → `Approved`).
+  * Requesting approval automatically notifies all users with **Project Administrator** access rights (`project.group_project_manager`) via Chatter and schedules To-Do activities in their top-bar activity menu.
+  * Project Administrators can approve, reject, or reset plans.
 
-### 📱 Mobile-Friendly GPS Check-in & Check-out
-* **Mobile-First UX**: Big, touch-friendly buttons optimized for mobile browsers and tablets.
-* **One-Click Check-in on Approved Plan**: Employees open their approved plan on their mobile phone and click "Check In at Site".
+### 📍 Multi-Device GPS Check-in & Check-out
+* **Desktop, Laptop & Mobile Support**: Check-in and check-out are supported across all devices (laptops, PCs, tablets, mobile browsers) using standard browser geolocation.
+* **One-Click Check-in on Approved Plan**: Employees open their approved plan and click "Check In at Site" or check in directly from the Project form header.
 * **GPS & Timestamp Capture**: Automatically records check-in and check-out time, GPS coordinates, device info, and reverse-geocodes physical address.
 * **Proximity & Duration Safeguard**: Automatically calculates time spent and detects check-outs beyond site tolerance.
 
