@@ -38,6 +38,10 @@
         <field name="arch" type="xml">
             <form string="Project Field Check-in">
                 <header>
+                    <button name="action_manual_check_in" string="Check In with Address / Link" type="object"
+                            class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_manual_check_out" string="Check Out with Address / Link" type="object"
+                            class="btn-primary" invisible="state != 'done'"/>
                     <button name="action_request_cancellation" string="Request Cancellation" type="object"
                             class="btn-warning" invisible="state not in ('done', 'checked_out')"/>
                     <button name="action_approve_cancellation" string="Approve Cancellation" type="object"
@@ -51,27 +55,30 @@
                 <sheet>
                     <group>
                         <group string="Visit Information">
-                            <field name="project_id"/>
-                            <field name="user_id"/>
+                            <field name="project_id" readonly="state != 'draft'"/>
+                            <field name="user_id" readonly="state != 'draft'"/>
                             <field name="plan_id" readonly="1"/>
-                            <field name="visit_date"/>
-                            <field name="check_out_date"/>
+                            <field name="visit_date" readonly="1"/>
+                            <field name="check_out_date" readonly="1"/>
                             <field name="duration_hours" widget="float_time"/>
                             <field name="duration_minutes"/>
                             <field name="planned_hours" widget="float_time" invisible="not plan_id"/>
                             <field name="is_planned" widget="boolean_toggle" readonly="1" invisible="1"/>
                         </group>
-                        <group string="Location">
-                            <field name="latitude"/>
-                            <field name="longitude"/>
-                            <field name="location_address"/>
+                        <group string="Check-in Location">
+                            <field name="location_address" placeholder="Paste Google Maps link or type check-in address..." readonly="state != 'draft'"/>
+                            <field name="latitude" readonly="state != 'draft'"/>
+                            <field name="longitude" readonly="state != 'draft'"/>
                             <field name="maps_url" widget="url" text="View Check-in on Map"/>
-                            <separator string="Check-out Location"/>
-                            <field name="check_out_latitude"/>
-                            <field name="check_out_longitude"/>
-                            <field name="check_out_location_address"/>
+                            <field name="device_info" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="Check-out Location" invisible="state == 'draft'">
+                        <group>
+                            <field name="check_out_location_address" placeholder="Paste Google Maps link or type check-out address..." readonly="state != 'done'"/>
+                            <field name="check_out_latitude" readonly="state != 'done'"/>
+                            <field name="check_out_longitude" readonly="state != 'done'"/>
                             <field name="check_out_maps_url" widget="url" text="View Check-out on Map"/>
-                            <field name="device_info"/>
                         </group>
                     </group>
                     <group string="Notes">

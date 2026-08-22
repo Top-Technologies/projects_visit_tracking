@@ -1,5 +1,6 @@
 import logging
 import math
+import re
 import requests
 from psycopg2 import IntegrityError
 
@@ -61,15 +62,18 @@ class VisitTracker(models.Model):
     duration_hours = fields.Float(
         string='Time Spent (hours)', compute='_compute_duration', store=True, readonly=True
     )
-    latitude = fields.Float(string='Latitude', digits=(10, 7), readonly=True)
-    longitude = fields.Float(string='Longitude', digits=(10, 7), readonly=True)
-    check_out_latitude = fields.Float(string='Check-out Latitude', digits=(10, 7), readonly=True)
-    check_out_longitude = fields.Float(string='Check-out Longitude', digits=(10, 7), readonly=True)
-    check_out_location_address = fields.Char(string='Check-out Address', readonly=True)
+    latitude = fields.Float(string='Latitude', digits=(10, 7))
+    longitude = fields.Float(string='Longitude', digits=(10, 7))
+    check_out_latitude = fields.Float(string='Check-out Latitude', digits=(10, 7))
+    check_out_longitude = fields.Float(string='Check-out Longitude', digits=(10, 7))
+    check_out_location_address = fields.Char(
+        string='Check-out Address / Maps Link',
+        help='Paste Google Maps link or enter check-out address'
+    )
     device_info = fields.Char(string='Device Info', readonly=True)
     location_address = fields.Char(
-        string='Check-in Address', readonly=True,
-        help='Address of check-in location'
+        string='Check-in Address / Maps Link',
+        help='Paste Google Maps link or enter check-in address'
     )
     notes = fields.Text(string='Visit Notes', help='Additional notes about this field visit')
     maps_url = fields.Char(
@@ -106,6 +110,16 @@ class VisitTracker(models.Model):
     rejection_reason = fields.Text(
         string='Rejection Reason',
         help='Reason given by the manager when rejecting the cancellation request'
+    )
+
+    _MAPS_SHORT_HOSTS = ('maps.app.goo.gl', 'goo.gl', 'g.co')
+    _COORD_URL_PATTERNS = (
+        r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)',
+        r'[?&]q=(-?\d+\.\d+),\s*(-?\d+\.\d+)',
+        r'[?&]ll=(-?\d+\.\d+),\s*(-?\d+\.\d+)',
+        r'[?&]destination=(-?\d+\.\d+),\s*(-?\d+\.\d+)',
+        r'[?&]daddr=(-?\d+\.\d+),\s*(-?\d+\.\d+)',
+        r'@(-?\d+\.\d+),(-?\d+\.\d+)',
     )
 
     def init(self):
@@ -196,8 +210,121 @@ class VisitTracker(models.Model):
             else:
                 record.check_out_maps_url = False
 
-    def action_check_in(self, lat, long, device_info, address=False):
-        """Method called by JS to save check-in location."""
+    @staticmethod
+    def _looks_like_maps_link(value):
+        if not value:
+            return False
+        value = str(value).strip().lower()
+        return (
+            value.startswith('http://') or value.startswith('https://')
+            or 'google.com/maps' in value or 'goo.gl' in value or 'g.co/maps' in value
+        )
+
+    @api.model
+    def _resolve_short_maps_url(self, url):
+        try:
+            response = requests.get(
+                url, allow_redirects=True, timeout=10,
+                headers={'User-Agent': 'OdooVisitTracker/19.0 (contact@top-tech.com)'}
+            )
+            return response.url
+        except Exception as e:
+            _logger.warning("Could not resolve shortened Google Maps link %s: %s", url, e)
+            return url
+
+    @api.model
+    def _extract_lat_lng_from_url(self, url):
+        if not url:
+            return False
+        url = str(url).strip()
+        if not url.lower().startswith(('http://', 'https://')):
+            url = 'https://' + url
+
+        if any(host in url for host in self._MAPS_SHORT_HOSTS):
+            url = self._resolve_short_maps_url(url)
+
+        for pattern in self._COORD_URL_PATTERNS:
+            match = re.search(pattern, url)
+            if not match:
+                continue
+            try:
+                lat, lng = float(match.group(1)), float(match.group(2))
+            except (TypeError, ValueError):
+                continue
+            if -90.0 <= lat <= 90.0 and -180.0 <= lng <= 180.0:
+                return lat, lng
+        return False
+
+    @api.onchange('location_address')
+    def _onchange_location_address(self):
+        value = (self.location_address or '').strip()
+        if not value or not self._looks_like_maps_link(value):
+            return
+        result = self._extract_lat_lng_from_url(value)
+        if result:
+            self.latitude, self.longitude = result
+        else:
+            return {
+                'warning': {
+                    'title': _('Could not extract coordinates from link'),
+                    'message': _(
+                        "This looks like a Google Maps link but coordinates could not be found in it."
+                    ),
+                }
+            }
+
+    @api.onchange('check_out_location_address')
+    def _onchange_check_out_location_address(self):
+        value = (self.check_out_location_address or '').strip()
+        if not value or not self._looks_like_maps_link(value):
+            return
+        result = self._extract_lat_lng_from_url(value)
+        if result:
+            self.check_out_latitude, self.check_out_longitude = result
+        else:
+            return {
+                'warning': {
+                    'title': _('Could not extract coordinates from link'),
+                    'message': _(
+                        "This looks like a Google Maps link but coordinates could not be found in it."
+                    ),
+                }
+            }
+
+    def action_manual_check_in(self):
+        """Perform check-in manually using entered Google Maps link or coordinates."""
+        self.ensure_one()
+        lat = self.latitude
+        long = self.longitude
+        addr = self.location_address
+        if (not lat or not long) and addr:
+            coords = self._extract_lat_lng_from_url(addr)
+            if coords:
+                lat, long = coords
+        if (not lat or not long) and self.plan_id and (self.plan_id.latitude and self.plan_id.longitude):
+            lat = self.plan_id.latitude
+            long = self.plan_id.longitude
+            if not addr:
+                addr = self.plan_id.location_address
+
+        self.action_check_in(lat or 0.0, long or 0.0, 'Manual Entry / Maps Link', address=addr)
+        return True
+
+    def action_manual_check_out(self):
+        """Perform check-out manually using entered Google Maps link or coordinates."""
+        self.ensure_one()
+        lat = self.check_out_latitude
+        long = self.check_out_longitude
+        addr = self.check_out_location_address
+        if (not lat or not long) and addr:
+            coords = self._extract_lat_lng_from_url(addr)
+            if coords:
+                lat, long = coords
+        self.action_check_out(latitude=lat or False, longitude=long or False, address=addr)
+        return True
+
+    def action_check_in(self, lat=0.0, long=0.0, device_info=False, address=False):
+        """Method called by JS or UI to save check-in location."""
         for record in self:
             if record.user_id and record.user_id != self.env.user and not self.env.user.has_group('project.group_project_manager'):
                 raise UserError(_('You can only check in your own visits.'))
@@ -221,11 +348,18 @@ class VisitTracker(models.Model):
                     % {'project': project_name, 'time': visit_date}
                 )
 
+            # If lat/long are 0 but address/link is given, extract from link
+            check_addr = address or record.location_address
+            if (not lat or not long) and check_addr:
+                coords = self._extract_lat_lng_from_url(check_addr)
+                if coords:
+                    lat, long = coords
+
             # Auto-link approved plan for this user & project if not already linked
             vals = {
-                'latitude': lat,
-                'longitude': long,
-                'device_info': device_info,
+                'latitude': lat or 0.0,
+                'longitude': long or 0.0,
+                'device_info': device_info or 'Manual Link / GPS',
                 'visit_date': fields.Datetime.now(),
                 'check_out_date': False,
                 'state': 'done'
@@ -242,11 +376,16 @@ class VisitTracker(models.Model):
                 ], limit=1)
                 if approved_plan:
                     vals['plan_id'] = approved_plan.id
+                    if not lat and not long and approved_plan.latitude and approved_plan.longitude:
+                        vals['latitude'] = approved_plan.latitude
+                        vals['longitude'] = approved_plan.longitude
+                        if not check_addr:
+                            check_addr = approved_plan.location_address
 
-            if not address and lat and long:
-                address = self._get_address_from_coordinates(lat, long)
-            if address:
-                vals['location_address'] = address
+            if not check_addr and lat and long:
+                check_addr = self._get_address_from_coordinates(lat, long)
+            if check_addr:
+                vals['location_address'] = check_addr
 
             try:
                 record.write(vals)
@@ -273,7 +412,7 @@ class VisitTracker(models.Model):
             'visit_date': active_visit.visit_date,
         }
 
-    def action_check_out(self, latitude=False, longitude=False):
+    def action_check_out(self, latitude=False, longitude=False, address=False):
         for record in self:
             if record.state != 'done':
                 raise UserError(_('Only active check-ins can be checked out.'))
@@ -281,6 +420,12 @@ class VisitTracker(models.Model):
                 raise UserError(_('You can only check out your own visits.'))
             if record.check_out_date:
                 raise UserError(_('This visit is already checked out.'))
+
+            check_addr = address or record.check_out_location_address
+            if (not latitude or not longitude) and check_addr:
+                coords = self._extract_lat_lng_from_url(check_addr)
+                if coords:
+                    latitude, longitude = coords
 
             vals = {
                 'check_out_date': fields.Datetime.now(),
@@ -291,8 +436,10 @@ class VisitTracker(models.Model):
                 vals.update({
                     'check_out_latitude': latitude,
                     'check_out_longitude': longitude,
-                    'check_out_location_address': self._get_address_from_coordinates(latitude, longitude),
+                    'check_out_location_address': check_addr or self._get_address_from_coordinates(latitude, longitude),
                 })
+            elif check_addr:
+                vals['check_out_location_address'] = check_addr
 
             if latitude and longitude and record.latitude and record.longitude:
                 distance = self._calculate_distance(

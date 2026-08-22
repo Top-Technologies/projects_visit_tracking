@@ -9,8 +9,10 @@
                 <field name="name"/>
                 <field name="project_id"/>
                 <field name="user_id"/>
+                <field name="approver_id"/>
                 <field name="location_address"/>
                 <filter string="My Plans" name="my_plans" domain="[('user_id', '=', uid)]"/>
+                <filter string="To Approve by Me" name="to_approve_by_me" domain="[('approver_id', '=', uid), ('state', '=', 'wait_approval')]"/>
                 <separator/>
                 <filter string="To Approve" name="to_approve" domain="[('state', '=', 'wait_approval')]"/>
                 <filter string="Approved" name="approved" domain="[('state', '=', 'approved')]"/>
@@ -24,6 +26,7 @@
                 <group>
                     <filter string="Project" name="group_project" context="{'group_by': 'project_id'}"/>
                     <filter string="Employee / Team Member" name="group_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="Approver" name="group_approver" context="{'group_by': 'approver_id'}"/>
                     <filter string="Status" name="group_state" context="{'group_by': 'state'}"/>
                     <filter string="Start Date" name="group_start_date" context="{'group_by': 'start_date:day'}"/>
                     <filter string="Month" name="group_month" context="{'group_by': 'start_date:month'}"/>
@@ -75,7 +78,7 @@
                             </span>
                         </div>
 
-                        <div class="bg-white p-2 rounded border mb-2">
+                        <div class="bg-white p-2 rounded border mb-2" t-if="record.state.raw_value === 'approved'">
                             <div class="d-flex justify-content-between small mb-1">
                                 <span><strong>Planned:</strong> <field name="planned_hours" widget="float_time"/></span>
                                 <span><strong>Actual:</strong> <field name="actual_hours" widget="float_time"/></span>
@@ -107,6 +110,7 @@
                 <field name="name"/>
                 <field name="project_id"/>
                 <field name="user_id"/>
+                <field name="approver_id" optional="show"/>
                 <field name="start_date"/>
                 <field name="end_date"/>
                 <field name="planning_type"/>
@@ -135,48 +139,40 @@
                     <button name="action_request_approval" string="Request Approval" type="object"
                             class="btn-primary" invisible="state != 'draft'"/>
                     <button name="action_approve" string="Approve" type="object"
-                            class="btn-success" groups="project.group_project_manager"
+                            class="btn-success"
                             invisible="state != 'wait_approval'"/>
                     <button name="action_reject" string="Reject" type="object"
-                            class="btn-danger" groups="project.group_project_manager"
+                            class="btn-danger"
                             invisible="state != 'wait_approval'"/>
                     <button name="action_reset_draft" string="Reset to Draft" type="object"
-                            invisible="state == 'draft'"/>
-                    <field name="state" widget="statusbar" statusbar_visible="draft,wait_approval,approved"/>
+                            class="btn-secondary" invisible="state not in ('wait_approval', 'rejected')"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,wait_approval,approved,rejected"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button name="action_view_check_ins" type="object"
                                 class="oe_stat_button" icon="fa-map-marker"
-                                invisible="check_in_count == 0">
-                            <div class="o_stat_info">
-                                <field name="check_in_count" class="o_stat_value"/>
-                                <span class="o_stat_text">Check-ins</span>
-                            </div>
-                        </button>
-                        <button class="oe_stat_button" icon="fa-clock-o" type="object" name="action_view_check_ins">
-                            <div class="o_stat_info">
-                                <field name="actual_hours" widget="float_time" class="o_stat_value"/>
-                                <span class="o_stat_text">Hours Spent</span>
-                            </div>
+                                invisible="state != 'approved'">
+                            <field name="check_in_count" widget="statinfo" string="Check-ins"/>
                         </button>
                     </div>
 
                     <div class="oe_title">
-                        <label for="name" string="Plan Reference"/>
-                        <h1>
-                            <field name="name" placeholder="e.g. Site Visit - Project X" readonly="state not in ('draft', 'rejected')"/>
+                        <label for="name" string="Plan Title"/>
+                        <h1 class="d-flex justify-content-between align-items-center">
+                            <field name="name" placeholder="e.g. Weekly Site Inspection - Alpha Zone"
+                                   readonly="state not in ('draft', 'rejected')"/>
                         </h1>
-                    </div>
-
-                    <!-- Quick Check-In Widget (Visible when Approved) -->
-                    <div class="o_plan_mobile_checkin_container my-3 p-3 bg-light border rounded" invisible="state != 'approved'">
-                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                            <div>
-                                <h5 class="mb-0 text-dark">
-                                    <i class="fa fa-map-marker text-primary me-2"/>Site Check-in
-                                </h5>
-                                <small class="text-muted">Use when arriving at or departing from the project site</small>
+                        <div class="d-flex align-items-center gap-3" invisible="state != 'approved'">
+                            <div class="d-flex gap-2">
+                                <span class="badge rounded-pill text-bg-primary fs-6 px-3 py-2">
+                                    <i class="fa fa-clock-o me-1"/>
+                                    Planned: <field name="planned_hours" widget="float_time" readonly="1" class="d-inline"/> hrs
+                                </span>
+                                <span class="badge rounded-pill text-bg-success fs-6 px-3 py-2">
+                                    <i class="fa fa-check-circle me-1"/>
+                                    Actual: <field name="actual_hours" widget="float_time" readonly="1" class="d-inline"/> hrs
+                                </span>
                             </div>
                             <div class="o_plan_geolocation_control">
                                 <widget name="plan_geolocation_button"/>
@@ -189,6 +185,7 @@
                             <field name="project_id" readonly="state not in ('draft', 'rejected')"/>
                             <field name="user_id" groups="project.group_project_manager" readonly="state not in ('draft', 'rejected')"/>
                             <field name="user_id" groups="!project.group_project_manager" readonly="1"/>
+                            <field name="approver_id" readonly="state not in ('draft', 'rejected')" options="{'no_create': True}" placeholder="Select Project Administrator to approve" required="1" domain="[['all_group_ids', 'in', %(project.group_project_manager)d], ['share', '=', False]]"/>
                             <field name="planning_type" widget="radio" options="{'horizontal': true}" readonly="state not in ('draft', 'rejected')"/>
                             <field name="custom_hours" widget="float_time" invisible="planning_type != 'custom_hours'" readonly="state not in ('draft', 'rejected')"/>
                             <field name="planned_hours" widget="float_time" readonly="state not in ('draft', 'rejected') and planning_type == 'full_day'"/>
@@ -196,11 +193,12 @@
                         <group string="Schedule &amp; Tracking">
                             <field name="start_date" readonly="state not in ('draft', 'rejected')"/>
                             <field name="end_date" readonly="state not in ('draft', 'rejected')"/>
-                            <field name="actual_hours" widget="float_time" readonly="1"/>
+                            <field name="actual_hours" widget="float_time" readonly="1" invisible="state != 'approved'"/>
                             <field name="variance_hours" widget="float_time" readonly="1"
+                                   invisible="state != 'approved'"
                                    decoration-success="variance_hours &gt;= 0"
                                    decoration-warning="variance_hours &lt; 0"/>
-                            <field name="completion_rate" widget="progressbar"/>
+                            <field name="completion_rate" widget="progressbar" invisible="state != 'approved'"/>
                             <field name="has_active_check_in" invisible="1"/>
                         </group>
                     </group>
@@ -216,7 +214,7 @@
                     </group>
 
                     <notebook>
-                        <page string="Check-in History" name="checkins">
+                        <page string="Check-in History" name="checkins" invisible="state != 'approved'">
                             <field name="visit_tracker_ids" readonly="1">
                                 <list decoration-success="state == 'checked_out'"
                                       decoration-bf="state == 'done'"

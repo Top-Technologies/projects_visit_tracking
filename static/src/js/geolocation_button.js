@@ -67,6 +67,10 @@ const visitCheckInService = {
             },
 
             _performGeoCall(recordId, modelName, method, successMsg, options, notification, orm) {
+                if (!navigator.geolocation) {
+                    return this._handleManualFallback(recordId, modelName, method, successMsg, notification, orm, "Geolocation is not supported by your browser.");
+                }
+
                 return new Promise((resolve) => {
                     navigator.geolocation.getCurrentPosition(
                         async (position) => {
@@ -87,28 +91,53 @@ const visitCheckInService = {
                                 resolve(false);
                             }
                         },
-                        (error) => {
-                            let msg = "Error getting location.";
+                        async (error) => {
+                            let reason = "GPS location is unavailable.";
                             switch (error.code) {
                                 case error.PERMISSION_DENIED:
-                                    msg = "Location permission was denied. Please allow location access in your browser settings.";
+                                    reason = "Location permission was denied.";
                                     break;
                                 case error.POSITION_UNAVAILABLE:
-                                    msg = "Location information is unavailable. Please check your device location settings.";
+                                    reason = "GPS location information is unavailable.";
                                     break;
                                 case error.TIMEOUT:
-                                    msg = "Location request timed out. Please try again.";
+                                    reason = "GPS location request timed out.";
                                     break;
                                 case error.UNKNOWN_ERROR:
-                                    msg = "An unknown error occurred while retrieving location.";
+                                    reason = "An unknown error occurred while retrieving location.";
                                     break;
                             }
-                            notification.add(msg, { type: "danger" });
-                            resolve(false);
+                            const fallbackResult = await this._handleManualFallback(recordId, modelName, method, successMsg, notification, orm, reason);
+                            resolve(fallbackResult);
                         },
                         options
                     );
                 });
+            },
+
+            async _handleManualFallback(recordId, modelName, method, successMsg, notification, orm, reason) {
+                const actionLabel = method === 'action_check_out' ? 'check out' : 'check in';
+                const input = window.prompt(`${reason}\n\nPlease paste a Google Maps link or enter the address to ${actionLabel}:`, "");
+                if (input === null) {
+                    notification.add(`Action cancelled.`, { type: "warning" });
+                    return false;
+                }
+
+                try {
+                    const device_info = (navigator.userAgent || "Browser") + " (Manual Link / Address)";
+                    const args = [[recordId], 0.0, 0.0];
+                    if (method === 'action_check_in') {
+                        args.push(device_info, input);
+                    } else {
+                        args.push(input);
+                    }
+                    const result = await orm.call(modelName, method, args);
+                    notification.add(successMsg, { type: "success" });
+                    return result !== undefined ? result : true;
+                } catch (err) {
+                    notification.add("Error: " + formatRpcError(err), { type: "danger" });
+                    return false;
+                }
             }
         };
     },
@@ -132,13 +161,6 @@ export class PlanGeolocationButton extends Component {
 
     async onClickCheckIn() {
         if (this.state.processing) {
-            return;
-        }
-
-        if (!navigator.geolocation) {
-            this.notification.add("Geolocation is not supported by your browser.", {
-                type: "danger",
-            });
             return;
         }
 
@@ -191,13 +213,6 @@ export class ProjectGeolocationButton extends Component {
 
     async onClickCheckIn() {
         if (this.state.processing) {
-            return;
-        }
-
-        if (!navigator.geolocation) {
-            this.notification.add("Geolocation is not supported by your browser.", {
-                type: "danger",
-            });
             return;
         }
 
@@ -257,13 +272,6 @@ export class VisitGeolocationButton extends Component {
 
     async onClickCheckIn() {
         if (this.state.processing) {
-            return;
-        }
-
-        if (!navigator.geolocation) {
-            this.notification.add("Geolocation is not supported by your browser.", {
-                type: "danger",
-            });
             return;
         }
 

@@ -89,6 +89,22 @@ class VisitPlan(models.Model):
         ('rejected', 'Rejected'),
     ], string="Status", default='draft', required=True, tracking=True)
 
+    @api.model
+    def _get_approver_domain(self):
+        project_admin_group = self.env.ref('project.group_project_manager', raise_if_not_found=False)
+        if project_admin_group:
+            return [('all_group_ids', 'in', [project_admin_group.id]), ('share', '=', False)]
+        return [('share', '=', False)]
+
+    approver_id = fields.Many2one(
+        "res.users",
+        string="Approver / Manager",
+        required=True,
+        tracking=True,
+        domain=lambda self: self._get_approver_domain(),
+        help="Specify the project administrator / manager who must review and approve this visit plan"
+    )
+
     approved_by_id = fields.Many2one(
         "res.users",
         string="Approved By",
@@ -247,19 +263,41 @@ class VisitPlan(models.Model):
             self._autofill_coordinates_from_vals(vals)
         return super().create(vals_list)
 
+    @api.constrains('approver_id')
+    def _check_approver_is_project_manager(self):
+        project_admin_group = self.env.ref('project.group_project_manager', raise_if_not_found=False)
+        if not project_admin_group:
+            return
+        for plan in self:
+            if plan.approver_id:
+                has_admin = False
+                if hasattr(plan.approver_id, 'all_group_ids'):
+                    has_admin = project_admin_group in plan.approver_id.all_group_ids
+                elif hasattr(plan.approver_id, 'group_ids'):
+                    has_admin = project_admin_group in plan.approver_id.group_ids
+                if not has_admin:
+                    raise ValidationError(_('The selected approver "%s" is not a Project Administrator. Please select a Project Administrator / Manager.') % plan.approver_id.name)
+
     def write(self, vals):
         is_manager = self.env.user.has_group('project.group_project_manager')
 
         if 'user_id' in vals and not is_manager:
             raise UserError(_('Only project managers can assign visit plans to other team members.'))
 
+        state_transition_fields = {'state', 'approved_by_id', 'approval_date', 'rejection_reason'}
+        is_state_transition = any(f in vals for f in state_transition_fields)
+
         for plan in self:
-            if not is_manager and plan.state not in ('draft', 'rejected'):
-                # Allow editing only draft or rejected plans for non-managers
-                if any(field not in ('location_address', 'latitude', 'longitude', 'notes') for field in vals):
-                    raise UserError(_('You cannot edit a visit plan that is pending approval or approved.'))
-            if not is_manager and plan.create_uid.id != self.env.user.id:
-                raise UserError(_('You cannot edit a visit plan created by your manager.'))
+            is_designated_approver = bool(plan.approver_id and plan.approver_id == self.env.user)
+            can_manage = is_manager or is_designated_approver
+
+            if not can_manage:
+                if plan.state not in ('draft', 'rejected'):
+                    # Allow editing only draft or rejected plans for non-managers
+                    if any(field not in ('location_address', 'latitude', 'longitude', 'notes') for field in vals):
+                        raise UserError(_('You cannot edit a visit plan that is pending approval or approved.'))
+                if plan.create_uid.id != self.env.user.id and plan.user_id.id != self.env.user.id and not is_state_transition:
+                    raise UserError(_('You cannot edit a visit plan created by another user.'))
 
         if 'location_address' in vals:
             self._autofill_coordinates_from_vals(vals)
@@ -267,16 +305,6 @@ class VisitPlan(models.Model):
         return super().write(vals)
 
     def action_request_approval(self):
-        project_admin_group = self.env.ref('project.group_project_manager', raise_if_not_found=False)
-        admin_users = self.env['res.users']
-        if project_admin_group:
-            if hasattr(project_admin_group, 'all_user_ids'):
-                admin_users = project_admin_group.all_user_ids.filtered(lambda u: u.active and not u.share)
-            elif hasattr(project_admin_group, 'user_ids'):
-                admin_users = project_admin_group.user_ids.filtered(lambda u: u.active and not u.share)
-            elif hasattr(project_admin_group, 'users'):
-                admin_users = project_admin_group.users.filtered(lambda u: u.active and not u.share)
-
         activity_type = self.env.ref('mail.mail_activity_data_todo', raise_if_not_found=False)
         activity_type_id = activity_type.id if activity_type else False
 
@@ -285,11 +313,13 @@ class VisitPlan(models.Model):
                 continue
             if not plan.project_id:
                 raise UserError(_('Please select a project before requesting approval.'))
-            plan.state = 'wait_approval'
+            if not plan.approver_id:
+                raise UserError(_('Please select an approver before requesting approval.'))
 
-            # Notify all users with Project Administrator privileges
-            if admin_users:
-                admin_partners = admin_users.mapped('partner_id')
+            plan.state = 'wait_approval'
+            target_user = plan.approver_id
+
+            if target_user and target_user.partner_id:
                 plan.message_post(
                     body=_(
                         "Visit plan approval requested by <b>%(user)s</b> for Project <b>%(project)s</b> (%(start)s to %(end)s, %(hours).2f hours planned)."
@@ -300,12 +330,12 @@ class VisitPlan(models.Model):
                         'end': plan.end_date,
                         'hours': plan.planned_hours,
                     },
-                    partner_ids=admin_partners.ids,
+                    partner_ids=[target_user.partner_id.id],
                     message_type='notification',
                     subtype_xmlid='mail.mt_comment',
                 )
 
-                # Schedule approval activity for each project admin so it appears in their activity list
+                # Schedule approval activity for the designated approver
                 model_id = (
                     self.env['ir.model']._get_id('visit.plan')
                     if hasattr(self.env['ir.model'], '_get_id')
@@ -315,28 +345,30 @@ class VisitPlan(models.Model):
                         else self.env['ir.model'].search([('model', '=', 'visit.plan')], limit=1).id
                     )
                 )
-                for admin in admin_users:
-                    existing = self.env['mail.activity'].search([
-                        ('res_model', '=', 'visit.plan'),
-                        ('res_id', '=', plan.id),
-                        ('user_id', '=', admin.id),
-                    ], limit=1)
-                    if not existing and activity_type_id and model_id:
-                        self.env['mail.activity'].create({
-                            'activity_type_id': activity_type_id,
-                            'summary': _('Visit Plan Approval Request: %s') % (plan.name or plan.project_id.name),
-                            'note': _(
-                                'Team Member <b>%s</b> has requested approval for their visit plan at project <b>%s</b> (%s to %s).'
-                            ) % (plan.user_id.name, plan.project_id.display_name, plan.start_date, plan.end_date),
-                            'res_model_id': model_id,
-                            'res_id': plan.id,
-                            'user_id': admin.id,
-                            'date_deadline': plan.start_date or fields.Date.context_today(self),
-                        })
+                existing = self.env['mail.activity'].search([
+                    ('res_model', '=', 'visit.plan'),
+                    ('res_id', '=', plan.id),
+                    ('user_id', '=', target_user.id),
+                ], limit=1)
+                if not existing and activity_type_id and model_id:
+                    self.env['mail.activity'].create({
+                        'activity_type_id': activity_type_id,
+                        'summary': _('Visit Plan Approval Request: %s') % (plan.name or plan.project_id.name),
+                        'note': _(
+                            'Team Member <b>%s</b> has requested approval for their visit plan at project <b>%s</b> (%s to %s).'
+                        ) % (plan.user_id.name, plan.project_id.display_name, plan.start_date, plan.end_date),
+                        'res_model_id': model_id,
+                        'res_id': plan.id,
+                        'user_id': target_user.id,
+                        'date_deadline': plan.start_date or fields.Date.context_today(self),
+                    })
 
     def action_approve(self):
-        if not self.env.user.has_group('project.group_project_manager'):
-            raise UserError(_('Only project managers can approve visit plans.'))
+        for plan in self:
+            is_manager = self.env.user.has_group('project.group_project_manager')
+            is_designated_approver = bool(plan.approver_id and plan.approver_id == self.env.user)
+            if not (is_manager or is_designated_approver):
+                raise UserError(_('Only project managers or the designated approver can approve visit plans.'))
 
         # Mark all pending activities for these plans as done
         activities = self.env['mail.activity'].search([
@@ -362,8 +394,11 @@ class VisitPlan(models.Model):
             )
 
     def action_reject(self):
-        if not self.env.user.has_group('project.group_project_manager'):
-            raise UserError(_('Only project managers can reject visit plans.'))
+        for plan in self:
+            is_manager = self.env.user.has_group('project.group_project_manager')
+            is_designated_approver = bool(plan.approver_id and plan.approver_id == self.env.user)
+            if not (is_manager or is_designated_approver):
+                raise UserError(_('Only project managers or the designated approver can reject visit plans.'))
 
         # Remove open activities
         activities = self.env['mail.activity'].search([
@@ -422,13 +457,24 @@ class VisitPlan(models.Model):
             },
         }
 
-    def action_check_in(self, lat, long, device_info, address=False):
-        """Called from UI/mobile widget to check in to this approved plan."""
+    def action_check_in(self, lat=False, long=False, device_info=False, address=False):
+        """Called from UI/mobile widget or manual address input to check in to this approved plan."""
         self.ensure_one()
         if self.state != 'approved':
             raise UserError(_('You can only check in to an approved visit plan.'))
         if self.user_id != self.env.user and not self.env.user.has_group('project.group_project_manager'):
             raise UserError(_('You can only check in to your own visit plan.'))
+
+        # Fallback to plan's location or address extraction if GPS is 0 or unavailable
+        if (not lat or not long) and address:
+            coords = self._extract_lat_lng_from_url(address)
+            if coords:
+                lat, long = coords
+        if (not lat or not long) and (self.latitude and self.longitude):
+            lat = self.latitude
+            long = self.longitude
+            if not address:
+                address = self.location_address
 
         # Concurrency guard
         self.env.cr.execute(
@@ -452,16 +498,17 @@ class VisitPlan(models.Model):
             'project_id': self.project_id.id,
             'plan_id': self.id,
             'user_id': self.env.user.id,
-            'latitude': lat,
-            'longitude': long,
-            'device_info': device_info,
+            'latitude': lat or 0.0,
+            'longitude': long or 0.0,
+            'location_address': address or self.location_address or False,
+            'device_info': device_info or 'Manual Link / Browser Entry',
             'state': 'draft',
         })
-        visit.action_check_in(lat, long, device_info, address)
+        visit.action_check_in(lat or 0.0, long or 0.0, device_info, address=address or self.location_address)
         return visit.id
 
-    def action_check_out(self, latitude=False, longitude=False):
-        """Called from UI/mobile widget to check out from the active visit on this plan."""
+    def action_check_out(self, latitude=False, longitude=False, address=False):
+        """Called from UI/mobile widget or manual entry to check out from the active visit on this plan."""
         self.ensure_one()
         active_visit = self.env['visit.tracker'].search([
             ('plan_id', '=', self.id),
@@ -470,7 +517,7 @@ class VisitPlan(models.Model):
         ], order='visit_date desc', limit=1)
         if not active_visit:
             raise UserError(_('You have no active check-in on this visit plan.'))
-        active_visit.action_check_out(latitude=latitude, longitude=longitude)
+        active_visit.action_check_out(latitude=latitude, longitude=longitude, address=address)
         return True
 
     @api.model

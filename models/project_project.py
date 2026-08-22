@@ -118,9 +118,10 @@ class ProjectProject(models.Model):
             visit = self.env['visit.tracker'].create({
                 'project_id': self.id,
                 'plan_id': approved_plan.id if approved_plan else False,
-                'latitude': lat,
-                'longitude': long,
-                'device_info': device_info,
+                'latitude': lat or 0.0,
+                'longitude': long or 0.0,
+                'location_address': address or False,
+                'device_info': device_info or 'Manual Link / GPS',
                 'state': 'draft',
             })
         except IntegrityError:
@@ -128,14 +129,14 @@ class ProjectProject(models.Model):
             raise UserError(_('You already have an active check-in. Please check out before checking in to another project.'))
 
         try:
-            visit.action_check_in(lat, long, device_info, address)
+            visit.action_check_in(lat or 0.0, long or 0.0, device_info, address=address)
         except IntegrityError:
             self.env.cr.rollback()
             raise UserError(_('You already have an active check-in. Please check out before checking in to another project.'))
 
         return visit.id
 
-    def action_check_out(self, latitude=False, longitude=False):
+    def action_check_out(self, latitude=False, longitude=False, address=False):
         """Check out from the active visit on this project."""
         self.ensure_one()
         active_visit = self.env['visit.tracker'].search([
@@ -145,5 +146,5 @@ class ProjectProject(models.Model):
         ], order='visit_date desc', limit=1)
         if not active_visit:
             raise UserError(_('You have no active check-in on this project.'))
-        active_visit.action_check_out(latitude=latitude, longitude=longitude)
+        active_visit.action_check_out(latitude=latitude, longitude=longitude, address=address)
         return True
